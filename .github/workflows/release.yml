@@ -60,10 +60,11 @@ jobs:
 
       - name: Remove unwanted Linux bundle files
         if: matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id')
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id') || exit 0
           gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
             case "$name" in
               *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
@@ -71,7 +72,7 @@ jobs:
                 ;;
               *)
                 echo "DELETE: $name"
-                gh api -X DELETE repos/${{ github.repository }}/releases/assets/$id
+                gh api -X DELETE repos/${{ github.repository }}/releases/assets/$id || true
                 ;;
             esac
           done
