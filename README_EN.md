@@ -7,7 +7,7 @@ TrayClip is a local-only clipboard manager focused on copy, paste, history, grou
 ## Features
 
 - Local-only storage, data stays on your machine
-- Clipboard history: plain text, rich text, images, file paths
+- Clipboard history: plain text, images, file paths
 - Group management, pinning, customizable retention limit
 - Quick Panel: standalone floating window, hotkey-activated, search-and-copy
 - Light / dark theme toggle
