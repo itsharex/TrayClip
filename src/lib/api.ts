@@ -1,0 +1,36 @@
+import { invoke } from "@tauri-apps/api/core";
+import type { AppSettings, BootstrapPayload, ClipGroup, ExportHistoryRequest, HotkeyActionKey, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState } from "./types";
+
+export const getBootstrap = () => invoke<BootstrapPayload>("get_bootstrap");
+export const listClips = (payload: ListClipsRequest) => invoke<ListClipsResponse>("list_clips", { payload });
+export const listGroups = () => invoke<ClipGroup[]>("list_groups");
+export const pinToggle = (clipId: number, pinned: boolean) => invoke("pin_toggle", { clipId, pinned });
+export const recopyClip = (clipId: number) => invoke("recopy_clip", { clipId });
+export const saveGroup = (groupId: number | null, groupName: string) => invoke<ClipGroup>("save_group", { groupId, groupName });
+export const deleteGroup = (groupId: number) => invoke("delete_group", { groupId });
+export const moveClipToGroup = (clipId: number, groupId: number | null) => invoke("move_clip_to_group", { clipId, groupId });
+export const deleteClip = (clipId: number) => invoke("delete_clip", { clipId });
+export const clearHistory = () => invoke("clear_history");
+export const getSettings = () => invoke<AppSettings>("get_settings");
+export const updateSettings = (payload: AppSettings) => invoke<AppSettings>("update_settings", { payload });
+export const getHotkeys = () => invoke<HotkeySetting[]>("get_hotkeys");
+export const updateHotkey = (actionKey: HotkeyActionKey, hotkeyValue: string) => invoke<HotkeySetting>("update_hotkey_setting", { actionKey, hotkeyValue });
+export const exportHistory = (payload: ExportHistoryRequest) => invoke<string>("export_history", { payload });
+export const importHistory = (filePath: string) => invoke<number>("import_history", { filePath });
+export const loadImageDataUrl = (filePath: string) => invoke<string>("load_image_data_url", { filePath });
+export const getPermissions = () => invoke<PermissionState>("get_permissions");
+export const requestAccessibilityPermission = () => invoke<boolean>("request_accessibility_permission");
+export const hideWindow = () => invoke("hide_window");
+export const quitApp = () => invoke("quit_app");
+export const toggleQuickPanel = () => invoke("toggle_quick_panel");
+export const hideQuickPanel = () => invoke("hide_quick_panel");
+export const setDragging = (dragging: boolean) => invoke("set_dragging", { dragging });
+
+export interface UpdateInfo {
+  has_update: boolean;
+  latest_version: string;
+  download_url: string;
+  body: string;
+}
+
+export const checkUpdate = (currentVersion: string) => invoke<UpdateInfo>("check_update", { currentVersion });

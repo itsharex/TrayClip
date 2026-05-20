@@ -1,0 +1,484 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
+use chrono::Utc;
+use rusqlite::{params, Connection, OptionalExtension};
+use sha2::{Digest, Sha256};
+
+use crate::{models::{AppSettings, ClipContentType, ClipGroup, ClipRecord, ExportHistoryRequest, HotkeySetting, ListClipsRequest, ListClipsResponse, NewClipRecord}, paths::AppPaths};
+
+pub const SCHEMA_VERSION: i64 = 1;
+
+pub fn open_database(paths: &AppPaths) -> anyhow::Result<Connection> {
+    let conn = Connection::open(&paths.db_path)?;
+    conn.execute_batch(
+        "
+        PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS clips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_type TEXT NOT NULL,
+            plain_text TEXT,
+            rich_text TEXT,
+            summary TEXT NOT NULL,
+            image_path TEXT,
+            file_paths_json TEXT NOT NULL DEFAULT '[]',
+            source_app TEXT NOT NULL DEFAULT '—',
+            is_pinned INTEGER NOT NULL DEFAULT 0,
+            is_truncated INTEGER NOT NULL DEFAULT 0,
+            group_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_used_at TEXT,
+            content_hash TEXT NOT NULL,
+            position_updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS clip_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS app_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            retention_limit INTEGER NOT NULL,
+            launch_on_startup INTEGER NOT NULL,
+            pause_capture INTEGER NOT NULL,
+            locale TEXT NOT NULL,
+            accessibility_prompted INTEGER NOT NULL,
+            close_behavior TEXT NOT NULL DEFAULT 'hide'
+        );
+        CREATE TABLE IF NOT EXISTS hotkey_settings (
+            action_key TEXT PRIMARY KEY,
+            hotkey_value TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_clips_created_at ON clips(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_clips_group_id ON clips(group_id);
+        CREATE INDEX IF NOT EXISTS idx_clips_is_pinned ON clips(is_pinned);
+        CREATE INDEX IF NOT EXISTS idx_clips_content_hash ON clips(content_hash);
+        "
+    )?;
+    ensure_defaults(&conn)?;
+    mark_schema_version(&conn)?;
+    Ok(conn)
+}
+
+fn mark_schema_version(conn: &Connection) -> anyhow::Result<()> {
+    let exists: Option<i64> = conn
+        .query_row("SELECT version FROM schema_migrations WHERE version = ?1", [SCHEMA_VERSION], |row| row.get(0))
+        .optional()?;
+
+    if exists.is_none() {
+        conn.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES(?1, ?2)",
+            params![SCHEMA_VERSION, Utc::now().to_rfc3339()],
+        )?;
+    }
+
+    Ok(())
+}
+
+fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
+    // Migration: add close_behavior column if missing
+    let has_column: bool = conn
+        .prepare("SELECT close_behavior FROM app_settings LIMIT 0")
+        .is_ok();
+    if !has_column {
+        let _ = conn.execute("ALTER TABLE app_settings ADD COLUMN close_behavior TEXT NOT NULL DEFAULT 'hide'", []);
+    }
+
+    // Migration: add panel_position column if missing
+    let has_panel_pos: bool = conn
+        .prepare("SELECT panel_position FROM app_settings LIMIT 0")
+        .is_ok();
+    if !has_panel_pos {
+        let _ = conn.execute("ALTER TABLE app_settings ADD COLUMN panel_position TEXT NOT NULL DEFAULT 'center'", []);
+    }
+
+    conn.execute(
+        "INSERT OR IGNORE INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position)
+         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center')",
+        [],
+    )?;
+
+    conn.execute(
+        "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Ctrl+Shift+Space')",
+        [],
+    )?;
+    conn.execute(
+        "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Ctrl+Shift+V')",
+        [],
+    )?;
+    Ok(())
+}
+
+pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
+    conn.query_row(
+        "SELECT retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position FROM app_settings WHERE id = 1",
+        [],
+        |row| {
+            Ok(AppSettings {
+                retention_limit: row.get(0)?,
+                launch_on_startup: row.get::<_, i64>(1)? == 1,
+                pause_capture: row.get::<_, i64>(2)? == 1,
+                locale: row.get(3)?,
+                accessibility_prompted: row.get::<_, i64>(4)? == 1,
+                close_behavior: row.get(5)?,
+                panel_position: row.get(6)?,
+            })
+        },
+    ).context("failed to load app settings")
+}
+
+pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Result<AppSettings> {
+    conn.execute(
+        "UPDATE app_settings SET retention_limit = ?1, launch_on_startup = ?2, pause_capture = ?3, locale = ?4, accessibility_prompted = ?5, close_behavior = ?6, panel_position = ?7 WHERE id = 1",
+        params![settings.retention_limit, settings.launch_on_startup as i64, settings.pause_capture as i64, settings.locale, settings.accessibility_prompted as i64, settings.close_behavior, settings.panel_position],
+    )?;
+    load_settings(conn)
+}
+
+pub fn list_hotkeys(conn: &Connection) -> anyhow::Result<Vec<HotkeySetting>> {
+    let mut statement = conn.prepare("SELECT action_key, hotkey_value FROM hotkey_settings ORDER BY action_key ASC")?;
+    let rows = statement.query_map([], |row| Ok(HotkeySetting { action_key: row.get(0)?, hotkey_value: row.get(1)? }))?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn save_hotkey(conn: &Connection, action_key: &str, hotkey_value: &str) -> anyhow::Result<HotkeySetting> {
+    let conflict: Option<String> = conn
+        .query_row(
+            "SELECT action_key FROM hotkey_settings WHERE hotkey_value = ?1 AND action_key != ?2",
+            params![hotkey_value, action_key],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    if conflict.is_some() {
+        anyhow::bail!("快捷键冲突");
+    }
+
+    conn.execute(
+        "INSERT INTO hotkey_settings(action_key, hotkey_value) VALUES(?1, ?2)
+         ON CONFLICT(action_key) DO UPDATE SET hotkey_value = excluded.hotkey_value",
+        params![action_key, hotkey_value],
+    )?;
+
+    Ok(HotkeySetting {
+        action_key: action_key.to_string(),
+        hotkey_value: hotkey_value.to_string(),
+    })
+}
+
+pub fn list_groups(conn: &Connection) -> anyhow::Result<Vec<ClipGroup>> {
+    let mut statement = conn.prepare("SELECT id, name, created_at, updated_at FROM clip_groups ORDER BY id ASC")?;
+    let rows = statement.query_map([], |row| {
+        Ok(ClipGroup {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            created_at: row.get(2)?,
+            updated_at: row.get(3)?,
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn save_group(conn: &Connection, group_id: Option<i64>, group_name: &str) -> anyhow::Result<ClipGroup> {
+    let now = Utc::now().to_rfc3339();
+    match group_id {
+        Some(id) => {
+            conn.execute("UPDATE clip_groups SET name = ?1, updated_at = ?2 WHERE id = ?3", params![group_name, now, id])?;
+            get_group(conn, id)
+        }
+        None => {
+            conn.execute("INSERT INTO clip_groups(name, created_at, updated_at) VALUES(?1, ?2, ?2)", params![group_name, now])?;
+            get_group(conn, conn.last_insert_rowid())
+        }
+    }
+}
+
+pub fn get_group(conn: &Connection, group_id: i64) -> anyhow::Result<ClipGroup> {
+    conn.query_row(
+        "SELECT id, name, created_at, updated_at FROM clip_groups WHERE id = ?1",
+        [group_id],
+        |row| {
+            Ok(ClipGroup {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        },
+    ).context("failed to load group")
+}
+
+pub fn delete_group(conn: &Connection, group_id: i64) -> anyhow::Result<()> {
+    conn.execute("UPDATE clips SET group_id = NULL WHERE group_id = ?1", [group_id])?;
+    conn.execute("DELETE FROM clip_groups WHERE id = ?1", [group_id])?;
+    Ok(())
+}
+
+pub fn move_clip_to_group(conn: &Connection, clip_id: i64, group_id: Option<i64>) -> anyhow::Result<()> {
+    conn.execute("UPDATE clips SET group_id = ?1, updated_at = ?2 WHERE id = ?3", params![group_id, Utc::now().to_rfc3339(), clip_id])?;
+    Ok(())
+}
+
+pub fn pin_toggle(conn: &Connection, clip_id: i64, pinned: bool) -> anyhow::Result<()> {
+    conn.execute(
+        "UPDATE clips SET is_pinned = ?1, position_updated_at = ?2, updated_at = ?2 WHERE id = ?3",
+        params![pinned as i64, Utc::now().to_rfc3339(), clip_id],
+    )?;
+    Ok(())
+}
+
+fn map_clip(row: &rusqlite::Row<'_>) -> rusqlite::Result<ClipRecord> {
+    let raw_type: String = row.get(1)?;
+    let content_type = match raw_type.as_str() {
+        "plain_text" => ClipContentType::PlainText,
+        "rich_text" => ClipContentType::RichText,
+        "image" => ClipContentType::Image,
+        "file_paths" => ClipContentType::FilePaths,
+        _ => ClipContentType::PlainText,
+    };
+    let file_paths_json: String = row.get(6)?;
+    let file_paths: Vec<String> = serde_json::from_str(&file_paths_json).unwrap_or_default();
+
+    Ok(ClipRecord {
+        id: row.get(0)?,
+        content_type,
+        plain_text: row.get(2)?,
+        rich_text: row.get(3)?,
+        summary: row.get(4)?,
+        image_path: row.get(5)?,
+        file_paths,
+        source_app: row.get(7)?,
+        is_pinned: row.get::<_, i64>(8)? == 1,
+        is_truncated: row.get::<_, i64>(9)? == 1,
+        group_id: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+        last_used_at: row.get(13)?,
+    })
+}
+
+pub fn get_clip_by_id(conn: &Connection, clip_id: i64) -> anyhow::Result<ClipRecord> {
+    conn.query_row(
+        "SELECT id, content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at FROM clips WHERE id = ?1",
+        [clip_id],
+        map_clip,
+    ).context("failed to load clip")
+}
+
+pub fn list_clips(conn: &Connection, request: &ListClipsRequest) -> anyhow::Result<ListClipsResponse> {
+    let page = request.page.max(1);
+    let page_size = request.page_size.clamp(1, 100);
+    let offset = (page - 1) * page_size;
+    let keyword = request.keyword.clone().unwrap_or_default().to_lowercase();
+    let like_keyword = format!("%{}%", keyword);
+    let group_id = request.group_id;
+    let pinned_only = request.pinned_only.unwrap_or(false) as i64;
+
+    let total: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM clips WHERE (?1 = '' OR LOWER(COALESCE(plain_text, '') || ' ' || summary) LIKE ?2) AND (?3 IS NULL OR group_id = ?3) AND (?4 = 0 OR is_pinned = 1)",
+        params![keyword, like_keyword, group_id, pinned_only],
+        |row| row.get(0),
+    )?;
+
+    let mut statement = conn.prepare(
+        "SELECT id, content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at FROM clips WHERE (?1 = '' OR LOWER(COALESCE(plain_text, '') || ' ' || summary) LIKE ?2) AND (?3 IS NULL OR group_id = ?3) AND (?4 = 0 OR is_pinned = 1) ORDER BY is_pinned DESC, position_updated_at DESC, id DESC LIMIT ?5 OFFSET ?6",
+    )?;
+    let rows = statement.query_map(params![keyword, like_keyword, group_id, pinned_only, page_size, offset], map_clip)?;
+    let items = rows.collect::<Result<Vec<_>, _>>()?;
+
+    Ok(ListClipsResponse {
+        has_more: offset + page_size < total,
+        items,
+        total,
+    })
+}
+
+pub fn delete_clip(conn: &Connection, clip_id: i64) -> anyhow::Result<Option<String>> {
+    let image_path: Option<Option<String>> = conn.query_row("SELECT image_path FROM clips WHERE id = ?1", [clip_id], |row| row.get(0)).optional()?;
+    conn.execute("DELETE FROM clips WHERE id = ?1", [clip_id])?;
+    Ok(image_path.flatten())
+}
+
+pub fn clear_history(conn: &Connection) -> anyhow::Result<Vec<String>> {
+    let mut statement = conn.prepare("SELECT image_path FROM clips WHERE is_pinned = 0 AND image_path IS NOT NULL")?;
+    let rows = statement.query_map([], |row| row.get(0))?;
+    let image_paths = rows.collect::<Result<Vec<_>, _>>()?;
+    conn.execute("DELETE FROM clips WHERE is_pinned = 0", [])?;
+    Ok(image_paths)
+}
+
+pub fn compute_hash(content_type: &ClipContentType, plain_text: &Option<String>, rich_text: &Option<String>, file_paths: &[String], summary: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(serde_json::to_string(content_type).unwrap_or_default());
+    hasher.update(plain_text.clone().unwrap_or_default());
+    hasher.update(rich_text.clone().unwrap_or_default());
+    hasher.update(summary);
+    hasher.update(file_paths.join("\n"));
+    format!("{:x}", hasher.finalize())
+}
+
+fn content_type_key(content_type: &ClipContentType) -> &'static str {
+    match content_type {
+        ClipContentType::PlainText => "plain_text",
+        ClipContentType::RichText => "rich_text",
+        ClipContentType::Image => "image",
+        ClipContentType::FilePaths => "file_paths",
+    }
+}
+
+pub fn ingest_clip(conn: &Connection, settings: &AppSettings, payload: NewClipRecord) -> anyhow::Result<()> {
+    let now = Utc::now().to_rfc3339();
+    let content_type = content_type_key(&payload.content_type);
+    let existing_clip_id: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM clips WHERE content_type = ?1 AND content_hash = ?2 ORDER BY position_updated_at DESC, id DESC LIMIT 1",
+            params![content_type, payload.content_hash],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    if let Some(clip_id) = existing_clip_id {
+        conn.execute(
+            "UPDATE clips SET plain_text = ?1, rich_text = ?2, summary = ?3, image_path = ?4, file_paths_json = ?5, source_app = ?6, is_truncated = ?7, updated_at = ?8, position_updated_at = ?8 WHERE id = ?9",
+            params![payload.plain_text, payload.rich_text, payload.summary, payload.image_path, serde_json::to_string(&payload.file_paths)?, payload.source_app, payload.is_truncated as i64, now, clip_id],
+        )?;
+        conn.execute(
+            "DELETE FROM clips WHERE content_type = ?1 AND content_hash = ?2 AND id != ?3",
+            params![content_type, payload.content_hash, clip_id],
+        )?;
+        cleanup_overflow(conn, settings.retention_limit)?;
+        return Ok(());
+    }
+
+    conn.execute(
+        "INSERT INTO clips(content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at, content_hash, position_updated_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, NULL, ?9, ?9, NULL, ?10, ?9)",
+        params![content_type, payload.plain_text, payload.rich_text, payload.summary, payload.image_path, serde_json::to_string(&payload.file_paths)?, payload.source_app, payload.is_truncated as i64, now, payload.content_hash],
+    )?;
+    cleanup_overflow(conn, settings.retention_limit)?;
+    Ok(())
+}
+
+pub fn cleanup_overflow(conn: &Connection, retention_limit: i64) -> anyhow::Result<Vec<String>> {
+    let count = conn.query_row("SELECT COUNT(*) FROM clips", [], |row| row.get::<_, i64>(0))?;
+    let overflow = count - retention_limit;
+    if overflow <= 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut statement = conn.prepare("SELECT id, image_path FROM clips WHERE is_pinned = 0 ORDER BY position_updated_at ASC LIMIT ?1")?;
+    let rows = statement.query_map([overflow], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?)))?;
+    let victims = rows.collect::<Result<Vec<_>, _>>()?;
+
+    let mut image_paths = Vec::new();
+    for (id, image_path) in victims {
+        if let Some(path) = image_path {
+            image_paths.push(path);
+        }
+        conn.execute("DELETE FROM clips WHERE id = ?1", [id])?;
+    }
+
+    Ok(image_paths)
+}
+
+pub fn mark_clip_used(conn: &Connection, clip_id: i64) -> anyhow::Result<()> {
+    conn.execute(
+        "UPDATE clips SET last_used_at = ?1, updated_at = ?1, position_updated_at = ?1 WHERE id = ?2",
+        params![Utc::now().to_rfc3339(), clip_id],
+    )?;
+    Ok(())
+}
+
+pub fn export_history(conn: &Connection, paths: &AppPaths, payload: &ExportHistoryRequest) -> anyhow::Result<String> {
+    let mut request = ListClipsRequest {
+        page: 1,
+        page_size: 100000,
+        keyword: None,
+        group_id: payload.group_id,
+        pinned_only: Some(payload.scope == "pinned"),
+    };
+    if payload.scope != "current_group" {
+        request.group_id = None;
+    }
+
+    let clips = list_clips(conn, &request)?.items;
+    let output_dir = payload.output_dir.as_ref().map(PathBuf::from).unwrap_or_else(|| paths.exports_dir.clone());
+    std::fs::create_dir_all(&output_dir)?;
+    let filename = format!("trayclip-export-{}.{}", Utc::now().format("%Y%m%d-%H%M%S"), payload.format);
+    let output_path = output_dir.join(filename);
+
+    match payload.format.as_str() {
+        "json" => {
+            let content = serde_json::to_string_pretty(&clips)?;
+            std::fs::write(&output_path, content)?;
+        }
+        "csv" => {
+            let mut writer = csv::Writer::from_path(&output_path)?;
+            writer.write_record(["id", "content_type", "summary", "plain_text", "source_app", "is_pinned", "group_id", "created_at"])?;
+            for clip in clips {
+                writer.write_record([
+                    clip.id.to_string(),
+                    serde_json::to_string(&clip.content_type)?.trim_matches('"').to_string(),
+                    clip.summary,
+                    clip.plain_text.unwrap_or_default(),
+                    clip.source_app,
+                    clip.is_pinned.to_string(),
+                    clip.group_id.map(|value| value.to_string()).unwrap_or_default(),
+                    clip.created_at,
+                ])?;
+            }
+            writer.flush()?;
+        }
+        _ => anyhow::bail!("不支持的导出格式"),
+    }
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
+pub fn import_history(conn: &Connection, file_path: &str) -> anyhow::Result<i64> {
+    let content = std::fs::read_to_string(file_path)?;
+    let clips: Vec<ClipRecord> = serde_json::from_str(&content)?;
+    let mut imported = 0i64;
+
+    for clip in &clips {
+        let content_type = content_type_key(&clip.content_type);
+        let content_hash = compute_hash(&clip.content_type, &clip.plain_text, &clip.rich_text, &clip.file_paths, &clip.summary);
+
+        let exists: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM clips WHERE content_type = ?1 AND content_hash = ?2 LIMIT 1",
+                params![content_type, content_hash],
+                |row| row.get(0),
+            )
+            .optional()?;
+
+        if exists.is_some() {
+            continue;
+        }
+
+        conn.execute(
+            "INSERT INTO clips(content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at, content_hash, position_updated_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?10, NULL, ?11, ?10)",
+            params![
+                content_type,
+                clip.plain_text,
+                clip.rich_text,
+                clip.summary,
+                clip.image_path,
+                serde_json::to_string(&clip.file_paths)?,
+                clip.source_app,
+                clip.is_pinned as i64,
+                clip.is_truncated as i64,
+                clip.created_at,
+                content_hash,
+            ],
+        )?;
+        imported += 1;
+    }
+
+    Ok(imported)
+}
