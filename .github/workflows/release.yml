@@ -56,4 +56,5 @@ jobs:
           releaseBody: "See the assets below to download and install."
           releaseDraft: true
           prerelease: false
+          tauriScript: ./node_modules/.bin/tauri
           args: --target ${{ matrix.target }}
