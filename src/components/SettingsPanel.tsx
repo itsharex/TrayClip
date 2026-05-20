@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { AppSettings, HotkeyActionKey, HotkeySetting, PermissionState } from "../lib/types";
+import type { AppSettings, HotkeyActionKey, HotkeySetting } from "../lib/types";
 import { useTranslation, type Locale } from "../lib/i18n";
 
 interface SettingsPanelProps {
   settings: AppSettings;
   hotkeys: HotkeySetting[];
-  permissions: PermissionState;
   exportFormat: "json" | "csv";
   exportScope: "all" | "current_group" | "pinned";
   hasCurrentGroup: boolean;
   onSettingsChange: (next: AppSettings) => void;
   onHotkeyChange: (actionKey: HotkeyActionKey, hotkeyValue: string) => void;
-  onRequestPermission: () => void;
   onExportFormatChange: (format: "json" | "csv") => void;
   onExportScopeChange: (scope: "all" | "current_group" | "pinned") => void;
   onExport: () => void;
@@ -106,13 +104,11 @@ function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecorderProps
 export function SettingsPanel({
   settings,
   hotkeys,
-  permissions,
   exportFormat,
   exportScope,
   hasCurrentGroup,
   onSettingsChange,
   onHotkeyChange,
-  onRequestPermission,
   onExportFormatChange,
   onExportScopeChange,
   onExport,
@@ -245,21 +241,6 @@ export function SettingsPanel({
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="settings-section">
-        <h3>{t.permissions}</h3>
-        <div className="permission-card">
-          <p>{t.accessibilityPermission}：{permissions.accessibility_granted ? t.granted : t.notGranted}</p>
-          <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: "0 0 8px" }}>
-            {permissions.accessibility_granted
-              ? t.accessibilityGrantedDesc
-              : t.accessibilityNotGrantedDesc}
-          </p>
-          <button onClick={onRequestPermission}>
-            {permissions.accessibility_granted ? t.viewPermissionSettings : t.goToAuthorize}
-          </button>
-        </div>
       </div>
     </section>
   );

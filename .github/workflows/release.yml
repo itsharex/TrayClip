@@ -16,13 +16,10 @@ jobs:
         include:
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
-            ext: .exe
           - platform: macos-latest
             target: aarch64-apple-darwin
-            ext: ""
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            ext: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -50,34 +47,32 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npx tauri build --target ${{ matrix.target }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: trayclip-${{ matrix.target }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/*
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          path: artifacts
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: TrayClip ${{ github.ref_name }}
-          body: "See the assets below to download and install."
-          draft: true
-          prerelease: false
-          files: artifacts/**/*
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: TrayClip ${{ github.ref_name }}
+          releaseBody: "See the assets below to download and install."
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+      - name: Remove unwanted Linux bundle files
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id')
+          gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
+            case "$name" in
+              *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
+                echo "KEEP: $name"
+                ;;
+              *)
+                echo "DELETE: $name"
+                gh api -X DELETE repos/${{ github.repository }}/releases/assets/$id
+                ;;
+            esac
+          done
+        shell: bash

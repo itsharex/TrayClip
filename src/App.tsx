@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { emit, listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { checkUpdate, clearHistory, deleteClip, deleteGroup, exportHistory, getBootstrap, hideWindow, importHistory, moveClipToGroup, pinToggle, quitApp, recopyClip, requestAccessibilityPermission, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { checkUpdate, clearHistory, deleteClip, deleteGroup, exportHistory, getBootstrap, hideWindow, importHistory, moveClipToGroup, pinToggle, quitApp, recopyClip, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { HistoryList } from "./components/HistoryList";
@@ -37,7 +37,7 @@ interface ConfirmState {
   onCancel?: () => Promise<void> | void;
 }
 
-const CURRENT_VERSION = "0.1.0";
+const CURRENT_VERSION = "0.1.1";
 
 function AboutPanel() {
   const { t } = useTranslation();
@@ -529,17 +529,12 @@ export default function App() {
             <SettingsPanel
               settings={state.settings}
               hotkeys={state.hotkeys}
-              permissions={state.permissions}
               exportFormat={exportFormat}
               exportScope={exportScope}
               hasCurrentGroup={selectedGroupId !== null}
               onSettingsChange={saveSettings}
               onHotkeyChange={async (actionKey, hotkeyValue) => {
                 await updateHotkey(actionKey, hotkeyValue);
-                await load();
-              }}
-              onRequestPermission={async () => {
-                await requestAccessibilityPermission();
                 await load();
               }}
               onExportFormatChange={setExportFormat}

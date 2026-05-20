@@ -137,14 +137,6 @@ export const en: typeof zh = {
   openQuickPanel: "Open quick panel",
   restoreDefault: "Restore default",
   pressHotkey: "Press hotkey...",
-  permissions: "Permissions",
-  accessibilityPermission: "Accessibility permission",
-  granted: "Granted",
-  notGranted: "Not granted",
-  accessibilityGrantedDesc: "Source app detection and quick paste are available.",
-  accessibilityNotGrantedDesc: 'Without permission, source app shows as "—", and quick paste falls back to re-copy.',
-  viewPermissionSettings: "View permission settings",
-  goToAuthorize: "Authorize",
 
   quickPanelSearch: "Search clipboard...",
 };

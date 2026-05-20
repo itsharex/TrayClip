@@ -145,14 +145,6 @@ export const zh = {
   openQuickPanel: "打开快捷面板",
   restoreDefault: "恢复默认",
   pressHotkey: "按下快捷键...",
-  permissions: "权限",
-  accessibilityPermission: "辅助功能权限",
-  granted: "已授予",
-  notGranted: "未授予",
-  accessibilityGrantedDesc: "来源应用采集与快速粘贴功能可用。",
-  accessibilityNotGrantedDesc: "未授予时来源应用显示为「—」，快速粘贴降级为再次复制。",
-  viewPermissionSettings: "查看权限设置",
-  goToAuthorize: "去授权",
 
   // 快捷面板
   quickPanelSearch: "搜索剪贴板...",
