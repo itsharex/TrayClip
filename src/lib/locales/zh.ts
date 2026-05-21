@@ -19,6 +19,7 @@ export const zh = {
 
   // 窗口栏
   toggleTheme: "切换主题",
+  toggleLang: "切换语言",
   closeWindow: "关闭窗口",
 
   // 剪贴记录

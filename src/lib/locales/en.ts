@@ -19,6 +19,7 @@ export const en: typeof zh = {
   pinned: "Pinned",
 
   toggleTheme: "Toggle theme",
+  toggleLang: "Switch language",
   closeWindow: "Close window",
 
   searchPlaceholder: "Search",

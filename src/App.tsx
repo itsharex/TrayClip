@@ -401,6 +401,15 @@ export default function App() {
             <button
                 className="window-bar__theme"
                 type="button"
+                aria-label={t.toggleLang}
+                onClick={() => setLocale(locale === "zh-CN" ? "en" : "zh-CN")}
+                title={t.toggleLang}
+            >
+              {locale === "zh-CN" ? "En" : "中"}
+            </button>
+            <button
+                className="window-bar__theme"
+                type="button"
                 aria-label={t.toggleTheme}
                 onClick={() => setTheme((th) => th === "light" ? "dark" : "light")}
                 title={t.toggleTheme}
