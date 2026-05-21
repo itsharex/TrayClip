@@ -239,7 +239,7 @@ pub fn position_quick_panel(window: &tauri::WebviewWindow, panel_position: &str)
 #[tauri::command]
 pub fn toggle_quick_panel(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     if let Some(window) = app.webview_windows().get("quick-panel").cloned() {
-        if window.is_visible().unwrap_or(false) {
+        if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
             let _ = window.hide();
         } else {
             let panel_position = state.settings.read().panel_position.clone();

@@ -6,6 +6,11 @@ import type { BootstrapPayload } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { HistoryList } from "./components/HistoryList";
 
+interface ConfirmState {
+  message: string;
+  onConfirm: () => Promise<void>;
+}
+
 const fallback: BootstrapPayload = {
   clips: { items: [], total: 0, has_more: false },
   groups: [],
@@ -34,6 +39,7 @@ export default function QuickPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [search]);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
 
@@ -82,12 +88,16 @@ export default function QuickPanel() {
     const handleKeydown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        void hideQuickPanel();
+        if (confirm) {
+          setConfirm(null);
+        } else {
+          void hideQuickPanel();
+        }
       }
     };
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, []);
+  }, [confirm]);
 
   const filteredClips = useMemo(() => {
     return state.clips.items.filter((clip) => {
@@ -100,40 +110,68 @@ export default function QuickPanel() {
     void hideQuickPanel();
   }, []);
 
+  const handleDeleteClip = useCallback((clipId: number) => {
+    setConfirm({
+      message: t.confirmDeleteClip,
+      onConfirm: async () => {
+        await deleteClip(clipId);
+        await load();
+        showNotice(t.clipDeleted);
+      },
+    });
+  }, [load, showNotice, t]);
+
   return (
-    <main className="quick-panel">
-      <div className="quick-panel__drag-handle" onMouseDown={(e) => {
-        if (e.button === 0) {
-          void setDragging(true);
-          getCurrentWindow().startDragging();
-          setTimeout(() => void setDragging(false), 500);
-        }
-      }}>
-        <span className="quick-panel__brand">{t.brand}</span>
-      </div>
-      <div className="quick-panel__header">
-        <input
-          ref={searchInputRef}
-          className="quick-panel__search"
-          placeholder={t.quickPanelSearch}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          autoFocus
-        />
-      </div>
-      <div className="quick-panel__list" ref={scrollRef}>
-        <HistoryList
-          clips={filteredClips}
-          groups={state.groups}
-          autoSelect={autoSelect}
-          onAutoSelectDone={() => setAutoSelect(false)}
-          onRecopy={handleRecopy}
-          onPinToggle={async (clipId, pinned) => { await pinToggle(clipId, pinned); await load(); }}
-          onMoveGroup={async (clipId, groupId) => { await moveClipToGroup(clipId, groupId); await load(); }}
-          onDelete={async (clipId) => { await deleteClip(clipId); await load(); }}
-        />
-      </div>
-      {notice ? <div className="toast">{notice}</div> : null}
-    </main>
+      <main className="quick-panel">
+        <div className="quick-panel__drag-handle" onMouseDown={(e) => {
+          if (e.button === 0) {
+            void setDragging(true);
+            getCurrentWindow().startDragging();
+            setTimeout(() => void setDragging(false), 500);
+          }
+        }}>
+          <span className="quick-panel__brand">{t.brand}</span>
+        </div>
+        <div className="quick-panel__header">
+          <input
+              ref={searchInputRef}
+              className="quick-panel__search"
+              placeholder={t.quickPanelSearch}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+          />
+        </div>
+        <div className="quick-panel__list" ref={scrollRef}>
+          <HistoryList
+              clips={filteredClips}
+              groups={state.groups}
+              autoSelect={autoSelect}
+              onAutoSelectDone={() => setAutoSelect(false)}
+              onRecopy={handleRecopy}
+              onPinToggle={async (clipId, pinned) => { await pinToggle(clipId, pinned); await load(); }}
+              onMoveGroup={async (clipId, groupId) => { await moveClipToGroup(clipId, groupId); await load(); }}
+              onDelete={handleDeleteClip}
+          />
+        </div>
+        {notice ? <div className="toast">{notice}</div> : null}
+        {confirm ? (
+            <div className="confirm-overlay" onClick={() => setConfirm(null)}>
+              <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+                <p>{confirm.message}</p>
+                <div className="confirm-dialog__actions">
+                  <button onClick={() => setConfirm(null)}>{t.cancel}</button>
+                  <button
+                      className="danger"
+                      onClick={async () => {
+                        await confirm.onConfirm();
+                        setConfirm(null);
+                      }}
+                  >{t.confirm}</button>
+                </div>
+              </div>
+            </div>
+        ) : null}
+      </main>
   );
 }

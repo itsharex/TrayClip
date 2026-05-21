@@ -2,7 +2,7 @@
 name = "trayclip"
 version = "0.1.4"
 description = "Pure local clipboard tool"
-authors = ["Codex"]
+authors = ["Heyiki"]
 edition = "2021"
 
 [build-dependencies]

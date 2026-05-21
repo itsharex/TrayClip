@@ -111,7 +111,7 @@ pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()
                     }
                     "open_quick_panel" => {
                         if let Some(window) = h.get_webview_window("quick-panel") {
-                            if window.is_visible().unwrap_or(false) {
+                            if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
                                 let _ = window.hide();
                             } else {
                                 let app_state = h.state::<AppState>();
