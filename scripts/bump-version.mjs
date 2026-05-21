@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -29,6 +30,9 @@ for (const { path: rel, regex, replacement } of files) {
         console.log(`OK: ${rel} -> ${newVersion}`);
     }
 }
+
+console.log("\nSyncing Cargo.lock...");
+execSync("cargo update -p trayclip", { cwd: resolve(root, "src-tauri"), stdio: "inherit" });
 
 console.log(`\nDone. Version bumped to ${newVersion}`);
 console.log(`Next: git add -A && git commit -m "release: v${newVersion}" && git tag v${newVersion} && git push origin main --tags`);
