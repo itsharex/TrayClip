@@ -1,6 +1,6 @@
 [package]
 name = "trayclip"
-version = "0.1.2"
+version = "0.1.3"
 description = "Pure local clipboard tool"
 authors = ["Codex"]
 edition = "2021"
