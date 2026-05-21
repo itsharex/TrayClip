@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ClipContentType, ClipGroup, ClipRecord } from "../lib/types";
+import type { ClipGroup, ClipRecord } from "../lib/types";
 import { useTranslation } from "../lib/i18n";
 import { useImagePreview } from "../hooks/useImagePreview";
 
@@ -21,27 +21,20 @@ function GroupSelectPopover({ groups, currentGroupId, onSelect }: GroupSelectPop
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
-  const [pos, setPos] = useState({ top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const currentName = currentGroupId != null ? groups.find((g) => g.id === currentGroupId)?.name ?? t.ungrouped : t.ungrouped;
   const filtered = groups.filter((g) => g.name.toLowerCase().includes(keyword.toLowerCase()));
 
-  const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 148) });
-    }
-    setOpen(true);
-  };
-
   return (
     <>
-      <button ref={btnRef} className="group-select-btn" onClick={handleOpen}>{currentName}</button>
+      <button ref={btnRef} className="group-select-btn" onClick={() => setOpen(true)}>{currentName}</button>
       {open ? (
         <div className="group-select-backdrop" onClick={() => { setOpen(false); setKeyword(""); }}>
-          <div className="group-select-popover" style={{ top: pos.top, left: pos.left }} onClick={(e) => e.stopPropagation()}>
-            <input autoFocus className="group-select-search" placeholder={t.searchGroup} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+          <div className="group-select-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="group-select-sheet__header">
+              <input autoFocus className="group-select-search" placeholder={t.searchGroup} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+            </div>
             <div className="group-select-list">
               <button className={currentGroupId == null ? "group-select-item active" : "group-select-item"} onClick={() => { onSelect(null); setOpen(false); setKeyword(""); }}>{t.ungrouped}</button>
               {filtered.map((group) => (
