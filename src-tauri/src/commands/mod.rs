@@ -294,15 +294,39 @@ pub fn check_update(current_version: String) -> Result<UpdateInfo, String> {
 
     let tag = json["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
     let body = json["body"].as_str().unwrap_or("").to_string();
-    let html_url = json["html_url"].as_str().unwrap_or("").to_string();
     let has_update = version_compare(tag, &current_version);
+
+    // Find platform-specific download URL from release assets
+    let assets = json["assets"].as_array().map(|a| a.as_slice()).unwrap_or(&[]);
+    let download_url = find_asset_url(assets).unwrap_or_else(|| {
+        json["html_url"].as_str().unwrap_or("").to_string()
+    });
 
     Ok(UpdateInfo {
         has_update,
         latest_version: tag.to_string(),
-        download_url: html_url,
+        download_url,
         body,
     })
+}
+
+fn find_asset_url(assets: &[serde_json::Value]) -> Option<String> {
+    let suffix = if cfg!(target_os = "windows") {
+        ".msi"
+    } else if cfg!(target_os = "macos") {
+        ".dmg"
+    } else {
+        ".AppImage"
+    };
+
+    for asset in assets {
+        let name = asset["name"].as_str().unwrap_or("");
+        let url = asset["browser_download_url"].as_str().unwrap_or("");
+        if name.ends_with(suffix) && !url.is_empty() {
+            return Some(url.to_string());
+        }
+    }
+    None
 }
 
 fn version_compare(latest: &str, current: &str) -> bool {
