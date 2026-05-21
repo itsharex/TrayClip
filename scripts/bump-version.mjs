@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync } from "fs";
-import { resolve, dirname } from "path";
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
+import { homedir } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -32,7 +33,14 @@ for (const { path: rel, regex, replacement } of files) {
 }
 
 console.log("\nSyncing Cargo.lock...");
-execSync("cargo update -p trayclip", { cwd: resolve(root, "src-tauri"), stdio: "inherit" });
+const cargoBin = existsSync(join(homedir(), ".cargo", "bin", "cargo"))
+    ? join(homedir(), ".cargo", "bin", "cargo")
+    : "cargo";
+try {
+    execSync(`${cargoBin} update -p trayclip`, { cwd: resolve(root, "src-tauri"), stdio: "inherit" });
+} catch {
+    console.warn("WARN: cargo not found or failed. Please run manually: cd src-tauri && cargo update -p trayclip");
+}
 
 console.log(`\nDone. Version bumped to ${newVersion}`);
 console.log(`Next: git add -A && git commit -m "release: v${newVersion}" && git tag v${newVersion} && git push origin main --tags`);
