@@ -14,7 +14,11 @@ export const clearHistory = () => invoke("clear_history");
 export const getSettings = () => invoke<AppSettings>("get_settings");
 export const updateSettings = (payload: AppSettings) => invoke<AppSettings>("update_settings", { payload });
 export const getHotkeys = () => invoke<HotkeySetting[]>("get_hotkeys");
-export const updateHotkey = (actionKey: HotkeyActionKey, hotkeyValue: string) => invoke<HotkeySetting>("update_hotkey_setting", { actionKey, hotkeyValue });
+export const updateHotkey = async (actionKey: HotkeyActionKey, hotkeyValue: string) => {
+  const result = await invoke<HotkeySetting>("update_hotkey_setting", { actionKey, hotkeyValue });
+  await invoke("reload_global_shortcuts");
+  return result;
+};
 export const exportHistory = (payload: ExportHistoryRequest) => invoke<string>("export_history", { payload });
 export const importHistory = (filePath: string) => invoke<number>("import_history", { filePath });
 export const loadImageDataUrl = (filePath: string) => invoke<string>("load_image_data_url", { filePath });

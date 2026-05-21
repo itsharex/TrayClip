@@ -32,6 +32,10 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
 
 fn show_main_window_centered(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        // If already visible and focused, do nothing
+        if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
+            return;
+        }
         if let Ok(Some(monitor)) = window.current_monitor() {
             let size = monitor.size();
             let pos = monitor.position();
@@ -82,7 +86,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()> {
+pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()> {
     let state = handle.state::<AppState>();
     let hotkeys = {
         let conn = state.conn.lock();
@@ -207,7 +211,8 @@ fn main() {
             commands::toggle_quick_panel,
             commands::hide_quick_panel,
             commands::set_dragging,
-            commands::check_update
+            commands::check_update,
+            commands::reload_global_shortcuts
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");

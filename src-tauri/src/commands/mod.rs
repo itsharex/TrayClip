@@ -1,6 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::Position;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, ExportHistoryRequest, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
 
@@ -123,6 +124,14 @@ pub fn get_hotkeys(state: State<'_, AppState>) -> Result<Vec<HotkeySetting>, Str
 pub fn update_hotkey_setting(state: State<'_, AppState>, action_key: String, hotkey_value: String) -> Result<HotkeySetting, String> {
     let conn = state.conn.lock();
     db::save_hotkey(&conn, &action_key, &hotkey_value).map_err(runtime_error)
+}
+
+#[tauri::command]
+pub fn reload_global_shortcuts(handle: AppHandle) -> Result<(), String> {
+    // Unregister all existing shortcuts
+    let _ = handle.global_shortcut().unregister_all();
+    // Re-register from DB
+    crate::register_global_shortcuts(&handle).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
