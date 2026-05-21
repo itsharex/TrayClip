@@ -277,7 +277,19 @@ pub struct UpdateInfo {
 }
 
 #[tauri::command]
-pub fn check_update(current_version: String) -> Result<UpdateInfo, String> {
+pub fn get_installer_type() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        detect_windows_install_type().to_string()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "unknown".to_string()
+    }
+}
+
+#[tauri::command]
+pub fn check_update(current_version: String, installer_type: String) -> Result<UpdateInfo, String> {
     let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
 
     let output = std::process::Command::new("curl")
@@ -298,7 +310,8 @@ pub fn check_update(current_version: String) -> Result<UpdateInfo, String> {
 
     // Find platform-specific download URL from release assets
     let assets = json["assets"].as_array().map(|a| a.as_slice()).unwrap_or(&[]);
-    let download_url = find_asset_url(assets).unwrap_or_else(|| {
+    let effective_type = if installer_type.is_empty() { "exe" } else { &installer_type };
+    let download_url = find_asset_url(assets, effective_type).unwrap_or_else(|| {
         json["html_url"].as_str().unwrap_or("").to_string()
     });
 
@@ -310,20 +323,63 @@ pub fn check_update(current_version: String) -> Result<UpdateInfo, String> {
     })
 }
 
-fn find_asset_url(assets: &[serde_json::Value]) -> Option<String> {
-    let suffix = if cfg!(target_os = "windows") {
-        ".msi"
-    } else if cfg!(target_os = "macos") {
-        ".dmg"
+#[cfg(target_os = "windows")]
+fn detect_windows_install_type() -> &'static str {
+    use std::process::Command;
+
+    let nsis_check = Command::new("reg")
+        .args([
+            "query",
+            "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TrayClip",
+            "/ve",
+        ])
+        .output();
+
+    if let Ok(output) = nsis_check {
+        if output.status.success() {
+            return "exe";
+        }
+    }
+
+    let msi_check = Command::new("reg")
+        .args([
+            "query",
+            "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{com.trayclip.app}",
+            "/ve",
+        ])
+        .output();
+
+    if let Ok(output) = msi_check {
+        if output.status.success() {
+            return "msi";
+        }
+    }
+
+    // Default to exe for new installs
+    "exe"
+}
+
+fn find_asset_url(assets: &[serde_json::Value], installer_type: &str) -> Option<String> {
+    #[cfg(target_os = "windows")]
+    let suffixes: &[&str] = if installer_type == "msi" {
+        &[".msi", ".exe"]
     } else {
-        ".AppImage"
+        &[".exe", ".msi"]
     };
 
-    for asset in assets {
-        let name = asset["name"].as_str().unwrap_or("");
-        let url = asset["browser_download_url"].as_str().unwrap_or("");
-        if name.ends_with(suffix) && !url.is_empty() {
-            return Some(url.to_string());
+    #[cfg(target_os = "macos")]
+    let suffixes: &[&str] = &[".dmg"];
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let suffixes: &[&str] = &[".AppImage"];
+
+    for suffix in suffixes {
+        for asset in assets {
+            let name = asset["name"].as_str().unwrap_or("");
+            let url = asset["browser_download_url"].as_str().unwrap_or("");
+            if name.ends_with(suffix) && !url.is_empty() {
+                return Some(url.to_string());
+            }
         }
     }
     None

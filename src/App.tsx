@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { emit, listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { checkUpdate, clearHistory, deleteClip, deleteGroup, exportHistory, getBootstrap, hideWindow, importHistory, moveClipToGroup, pinToggle, quitApp, recopyClip, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { checkUpdate, clearHistory, deleteClip, deleteGroup, exportHistory, getBootstrap, getInstallerType, hideWindow, importHistory, moveClipToGroup, pinToggle, quitApp, recopyClip, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
@@ -44,13 +44,18 @@ function AboutPanel() {
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<{ has_update: boolean; latest_version: string; download_url: string; body: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [installerType, setInstallerType] = useState("exe");
+
+  useEffect(() => {
+    getInstallerType().then(setInstallerType).catch(() => {});
+  }, []);
 
   const handleCheck = async () => {
     setChecking(true);
     setResult(null);
     setError(null);
     try {
-      const info = await checkUpdate(version);
+      const info = await checkUpdate(version, installerType);
       setResult(info);
     } catch (e) {
       setError(String(e));

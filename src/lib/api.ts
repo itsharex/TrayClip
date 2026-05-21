@@ -37,4 +37,6 @@ export interface UpdateInfo {
   body: string;
 }
 
-export const checkUpdate = (currentVersion: string) => invoke<UpdateInfo>("check_update", { currentVersion });
+export const checkUpdate = (currentVersion: string, installerType: string) => invoke<UpdateInfo>("check_update", { currentVersion, installerType });
+
+export const getInstallerType = () => invoke<string>("get_installer_type");

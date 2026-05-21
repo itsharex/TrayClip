@@ -212,6 +212,7 @@ fn main() {
             commands::hide_quick_panel,
             commands::set_dragging,
             commands::check_update,
+            commands::get_installer_type,
             commands::reload_global_shortcuts
         ])
         .run(tauri::generate_context!())
