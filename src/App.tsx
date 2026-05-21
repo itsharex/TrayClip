@@ -148,6 +148,15 @@ export default function App() {
   }, [load]);
 
   useEffect(() => {
+    const win = getCurrentWindow();
+    let unlisten: (() => void) | undefined;
+    win.onFocusChanged(({ payload: focused }) => {
+      if (focused) void load();
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [load]);
+
+  useEffect(() => {
     settingsRef.current = state.settings;
   }, [state.settings]);
 
