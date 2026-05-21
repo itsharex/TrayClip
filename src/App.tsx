@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { checkUpdate, clearHistory, deleteClip, deleteGroup, exportHistory, getBootstrap, hideWindow, importHistory, moveClipToGroup, pinToggle, quitApp, recopyClip, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
+import { useAppVersion } from "./hooks/useAppVersion";
 import { HistoryList } from "./components/HistoryList";
 import { SettingsPanel } from "./components/SettingsPanel";
 
@@ -37,10 +38,9 @@ interface ConfirmState {
   onCancel?: () => Promise<void> | void;
 }
 
-const CURRENT_VERSION = "0.1.1";
-
 function AboutPanel() {
   const { t } = useTranslation();
+  const version = useAppVersion();
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<{ has_update: boolean; latest_version: string; download_url: string; body: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ function AboutPanel() {
     setResult(null);
     setError(null);
     try {
-      const info = await checkUpdate(CURRENT_VERSION);
+      const info = await checkUpdate(version);
       setResult(info);
     } catch (e) {
       setError(String(e));
@@ -60,35 +60,35 @@ function AboutPanel() {
   };
 
   return (
-    <section className="tab-panel about-panel">
-      <h2>{t.aboutTitle}</h2>
-      <p>{t.aboutDesc}</p>
-      <ul>
-        <li>{t.aboutVersion(CURRENT_VERSION)}</li>
-        <li>{t.aboutStorage}</li>
-        <li>{t.aboutPlatform}</li>
-        <li>{t.aboutLicense}</li>
-      </ul>
-      <div style={{ marginTop: 12 }}>
-        <button onClick={() => void handleCheck()} disabled={checking}>
-          {checking ? t.checking : t.checkUpdate}
-        </button>
-      </div>
-      {result ? (
-        <div className="update-result">
-          {result.has_update ? (
-            <>
-              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(result.latest_version)}</p>
-              {result.body ? <pre className="update-changelog">{result.body}</pre> : null}
-              <a href={result.download_url} target="_blank" rel="noopener noreferrer" className="update-link">{t.goToDownload}</a>
-            </>
-          ) : (
-            <p style={{ color: "var(--text-tertiary)", margin: "8px 0 0" }}>{t.upToDate}</p>
-          )}
+      <section className="tab-panel about-panel">
+        <h2>{t.aboutTitle}</h2>
+        <p>{t.aboutDesc}</p>
+        <ul>
+          <li>{t.aboutVersion(version)}</li>
+          <li>{t.aboutStorage}</li>
+          <li>{t.aboutPlatform}</li>
+          <li>{t.aboutLicense}</li>
+        </ul>
+        <div style={{ marginTop: 12 }}>
+          <button onClick={() => void handleCheck()} disabled={checking}>
+            {checking ? t.checking : t.checkUpdate}
+          </button>
         </div>
-      ) : null}
-      {error ? <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(error)}</p> : null}
-    </section>
+        {result ? (
+            <div className="update-result">
+              {result.has_update ? (
+                  <>
+                    <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(result.latest_version)}</p>
+                    {result.body ? <pre className="update-changelog">{result.body}</pre> : null}
+                    <a href={result.download_url} target="_blank" rel="noopener noreferrer" className="update-link">{t.goToDownload}</a>
+                  </>
+              ) : (
+                  <p style={{ color: "var(--text-tertiary)", margin: "8px 0 0" }}>{t.upToDate}</p>
+              )}
+            </div>
+        ) : null}
+        {error ? <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(error)}</p> : null}
+      </section>
   );
 }
 
@@ -378,262 +378,262 @@ export default function App() {
   }, [load, showNotice, t]);
 
   return (
-    <main className="app-shell">
-      <header className="window-bar" onMouseDown={(e) => { if (e.button === 0) getCurrentWindow().startDragging(); }}>
-        <div className="window-bar__brand">
-          <span className="window-bar__title" onClick={() => setActiveTab("clips")} onMouseDown={(e) => e.stopPropagation()} style={{ cursor: "pointer" }}>{t.brand}</span>
-        </div>
-        <div className="window-bar__actions" onMouseDown={(e) => e.stopPropagation()}>
-          <button
-            className="window-bar__theme"
-            type="button"
-            aria-label={t.toggleTheme}
-            onClick={() => setTheme((th) => th === "light" ? "dark" : "light")}
-            title={t.toggleTheme}
-          >
-            {theme === "light" ? "🌙" : "☀"}
-          </button>
-          <div className="window-bar__settings" ref={settingsMenuRef}>
+      <main className="app-shell">
+        <header className="window-bar" onMouseDown={(e) => { if (e.button === 0) getCurrentWindow().startDragging(); }}>
+          <div className="window-bar__brand">
+            <span className="window-bar__title" onClick={() => setActiveTab("clips")} onMouseDown={(e) => e.stopPropagation()} style={{ cursor: "pointer" }}>{t.brand}</span>
+          </div>
+          <div className="window-bar__actions" onMouseDown={(e) => e.stopPropagation()}>
             <button
-              className={settingsMenuOpen ? "window-bar__settings-btn active" : "window-bar__settings-btn"}
-              type="button"
-              aria-label={t.settings}
-              onClick={() => setSettingsMenuOpen((open) => !open)}
+                className="window-bar__theme"
+                type="button"
+                aria-label={t.toggleTheme}
+                onClick={() => setTheme((th) => th === "light" ? "dark" : "light")}
+                title={t.toggleTheme}
             >
-              {t.settings}
+              {theme === "light" ? "🌙" : "☀"}
             </button>
-            {settingsMenuOpen ? (
-              <div className="window-bar__settings-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => { setActiveTab("settings"); setSettingsMenuOpen(false); }}>{t.settings}</button>
-                <button type="button" role="menuitem" onClick={() => { setActiveTab("help"); setSettingsMenuOpen(false); }}>{t.help}</button>
-                <button type="button" role="menuitem" onClick={() => { setActiveTab("about"); setSettingsMenuOpen(false); }}>{t.about}</button>
-              </div>
-            ) : null}
-          </div>
-          <button
-            className="window-bar__close"
-            type="button"
-            aria-label={t.closeWindow}
-            onClick={() => void handleWindowClose()}
-          >
-            ×
-          </button>
-        </div>
-      </header>
-
-      <section className="workspace">
-        {activeTab === "clips" ? (
-          <section className="tab-panel">
-            <div className="toolbar">
-              <div className="toolbar-row">
-                <input
-                  ref={searchInputRef}
-                  className="toolbar-search"
-                  placeholder={t.searchPlaceholder}
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="group-bar">
+            <div className="window-bar__settings" ref={settingsMenuRef}>
               <button
-                className={selectedGroupId === null ? "group-tag active" : "group-tag"}
-                onClick={() => setSelectedGroupId(null)}
+                  className={settingsMenuOpen ? "window-bar__settings-btn active" : "window-bar__settings-btn"}
+                  type="button"
+                  aria-label={t.settings}
+                  onClick={() => setSettingsMenuOpen((open) => !open)}
               >
-                {t.all}
+                {t.settings}
               </button>
-              {state.groups.map((group) => (
-                renamingGroupId === group.id ? (
-                  <input
-                    key={group.id}
-                    autoFocus
-                    className="group-rename-input"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void commitRename();
-                      if (e.key === "Escape") setRenamingGroupId(null);
-                    }}
-                    onBlur={() => void commitRename()}
-                    maxLength={10}
-                  />
-                ) : (
-                  <button
-                    key={group.id}
-                    className={selectedGroupId === group.id ? "group-tag active" : "group-tag"}
-                    onClick={() => setSelectedGroupId(group.id)}
-                    onDoubleClick={() => startRename(group)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      removeGroup(group);
-                    }}
-                    title={t.renameGroupHint(group.name)}
-                  >
-                    {group.name}
-                  </button>
-                )
-              ))}
-              {showGroupInput ? (
-                <div className="group-creator-inline">
-                  <input
-                    autoFocus
-                    className="group-creator-input"
-                    placeholder={t.groupNamePlaceholder}
-                    maxLength={10}
-                    value={newGroupName}
-                    onChange={(event) => setNewGroupName(event.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void createGroup();
-                      if (e.key === "Escape") {
-                        setShowGroupInput(false);
-                        setNewGroupName("");
-                      }
-                    }}
-                    onBlur={() => {
-                      if (!newGroupName.trim()) setShowGroupInput(false);
-                    }}
-                  />
+              {settingsMenuOpen ? (
+                  <div className="window-bar__settings-menu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => { setActiveTab("settings"); setSettingsMenuOpen(false); }}>{t.settings}</button>
+                    <button type="button" role="menuitem" onClick={() => { setActiveTab("help"); setSettingsMenuOpen(false); }}>{t.help}</button>
+                    <button type="button" role="menuitem" onClick={() => { setActiveTab("about"); setSettingsMenuOpen(false); }}>{t.about}</button>
+                  </div>
+              ) : null}
+            </div>
+            <button
+                className="window-bar__close"
+                type="button"
+                aria-label={t.closeWindow}
+                onClick={() => void handleWindowClose()}
+            >
+              ×
+            </button>
+          </div>
+        </header>
+
+        <section className="workspace">
+          {activeTab === "clips" ? (
+              <section className="tab-panel">
+                <div className="toolbar">
+                  <div className="toolbar-row">
+                    <input
+                        ref={searchInputRef}
+                        className="toolbar-search"
+                        placeholder={t.searchPlaceholder}
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <button className="group-add-btn" onClick={() => setShowGroupInput(true)} title={t.createGroup}>+</button>
-              )}
-            </div>
 
-            <section className="content-column">
-              <div className="content-toolbar">
-                <span className="content-count">{t.recordsCount(filteredClips.length)}</span>
+                <div className="group-bar">
+                  <button
+                      className={selectedGroupId === null ? "group-tag active" : "group-tag"}
+                      onClick={() => setSelectedGroupId(null)}
+                  >
+                    {t.all}
+                  </button>
+                  {state.groups.map((group) => (
+                      renamingGroupId === group.id ? (
+                          <input
+                              key={group.id}
+                              autoFocus
+                              className="group-rename-input"
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void commitRename();
+                                if (e.key === "Escape") setRenamingGroupId(null);
+                              }}
+                              onBlur={() => void commitRename()}
+                              maxLength={10}
+                          />
+                      ) : (
+                          <button
+                              key={group.id}
+                              className={selectedGroupId === group.id ? "group-tag active" : "group-tag"}
+                              onClick={() => setSelectedGroupId(group.id)}
+                              onDoubleClick={() => startRename(group)}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                removeGroup(group);
+                              }}
+                              title={t.renameGroupHint(group.name)}
+                          >
+                            {group.name}
+                          </button>
+                      )
+                  ))}
+                  {showGroupInput ? (
+                      <div className="group-creator-inline">
+                        <input
+                            autoFocus
+                            className="group-creator-input"
+                            placeholder={t.groupNamePlaceholder}
+                            maxLength={10}
+                            value={newGroupName}
+                            onChange={(event) => setNewGroupName(event.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void createGroup();
+                              if (e.key === "Escape") {
+                                setShowGroupInput(false);
+                                setNewGroupName("");
+                              }
+                            }}
+                            onBlur={() => {
+                              if (!newGroupName.trim()) setShowGroupInput(false);
+                            }}
+                        />
+                      </div>
+                  ) : (
+                      <button className="group-add-btn" onClick={() => setShowGroupInput(true)} title={t.createGroup}>+</button>
+                  )}
+                </div>
+
+                <section className="content-column">
+                  <div className="content-toolbar">
+                    <span className="content-count">{t.recordsCount(filteredClips.length)}</span>
+                  </div>
+
+                  <HistoryList
+                      clips={filteredClips}
+                      groups={state.groups}
+                      scrollRef={scrollRef}
+                      onRecopy={handleRecopy}
+                      onPinToggle={async (clipId, pinned) => {
+                        await pinToggle(clipId, pinned);
+                        await load();
+                      }}
+                      onMoveGroup={async (clipId, groupId) => {
+                        await moveClipToGroup(clipId, groupId);
+                        await load();
+                      }}
+                      onDelete={handleDeleteClip}
+                  />
+                </section>
+              </section>
+          ) : null}
+
+          {activeTab === "settings" ? (
+              <section className="tab-panel">
+                <SettingsPanel
+                    settings={state.settings}
+                    hotkeys={state.hotkeys}
+                    exportFormat={exportFormat}
+                    exportScope={exportScope}
+                    hasCurrentGroup={selectedGroupId !== null}
+                    onSettingsChange={saveSettings}
+                    onHotkeyChange={async (actionKey, hotkeyValue) => {
+                      await updateHotkey(actionKey, hotkeyValue);
+                      await load();
+                    }}
+                    onExportFormatChange={setExportFormat}
+                    onExportScopeChange={setExportScope}
+                    onExport={handleExport}
+                    onImport={handleImport}
+                    onClearHistory={handleClearHistory}
+                />
+              </section>
+          ) : null}
+
+          {activeTab === "help" ? (
+              <section className="tab-panel about-panel">
+                <h2>{t.helpTitle}</h2>
+
+                <h3>{t.helpWindowOps}</h3>
+                <ul>
+                  {t.helpWindowOpsItems.map(([label, desc], i) => (
+                      <li key={i}><b>{label}：</b>{desc}</li>
+                  ))}
+                </ul>
+
+                <h3>{t.helpClipboard}</h3>
+                <ul>
+                  {t.helpClipboardItems.map(([label, desc], i) => (
+                      <li key={i}><b>{label}：</b>{desc}</li>
+                  ))}
+                </ul>
+
+                <h3>{t.helpGroups}</h3>
+                <ul>
+                  {t.helpGroupsItems.map(([label, desc], i) => (
+                      <li key={i}><b>{label}：</b>{desc}</li>
+                  ))}
+                </ul>
+
+                <h3>{t.helpKeyboard}</h3>
+                <ul>
+                  {t.helpKeyboardItems.map((item, i) => (
+                      <li key={i}>{item}</li>
+                  ))}
+                </ul>
+
+                <h3>{t.helpSettings}</h3>
+                <ul>
+                  {t.helpSettingsItems.map(([label, desc], i) => (
+                      <li key={i}><b>{label}：</b>{desc}</li>
+                  ))}
+                </ul>
+              </section>
+          ) : null}
+
+          {activeTab === "about" ? (
+              <AboutPanel />
+          ) : null}
+        </section>
+
+        {confirm ? (
+            <div className="confirm-overlay" onClick={() => setConfirm(null)}>
+              <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+                <p>{confirm.message}</p>
+                <div className="confirm-dialog__actions">
+                  <button
+                      onClick={async () => {
+                        try {
+                          if (confirm.onCancel) {
+                            await confirm.onCancel();
+                          }
+                        } catch (err) {
+                          console.error("操作失败:", err);
+                          showNotice(t.operationFailed);
+                        } finally {
+                          setConfirm(null);
+                        }
+                      }}
+                  >
+                    {confirm.cancelLabel ?? t.cancel}
+                  </button>
+                  <button
+                      className={confirm.cancelLabel ? "primary" : "danger"}
+                      onClick={async () => {
+                        try {
+                          await confirm.onConfirm();
+                        } catch (err) {
+                          console.error("操作失败:", err);
+                          showNotice(t.operationFailed);
+                        } finally {
+                          setConfirm(null);
+                        }
+                      }}
+                  >
+                    {confirm.confirmLabel ?? t.confirm}
+                  </button>
+                </div>
               </div>
-
-              <HistoryList
-                clips={filteredClips}
-                groups={state.groups}
-                scrollRef={scrollRef}
-                onRecopy={handleRecopy}
-                onPinToggle={async (clipId, pinned) => {
-                  await pinToggle(clipId, pinned);
-                  await load();
-                }}
-                onMoveGroup={async (clipId, groupId) => {
-                  await moveClipToGroup(clipId, groupId);
-                  await load();
-                }}
-                onDelete={handleDeleteClip}
-              />
-            </section>
-          </section>
-        ) : null}
-
-        {activeTab === "settings" ? (
-          <section className="tab-panel">
-            <SettingsPanel
-              settings={state.settings}
-              hotkeys={state.hotkeys}
-              exportFormat={exportFormat}
-              exportScope={exportScope}
-              hasCurrentGroup={selectedGroupId !== null}
-              onSettingsChange={saveSettings}
-              onHotkeyChange={async (actionKey, hotkeyValue) => {
-                await updateHotkey(actionKey, hotkeyValue);
-                await load();
-              }}
-              onExportFormatChange={setExportFormat}
-              onExportScopeChange={setExportScope}
-              onExport={handleExport}
-              onImport={handleImport}
-              onClearHistory={handleClearHistory}
-            />
-          </section>
-        ) : null}
-
-        {activeTab === "help" ? (
-          <section className="tab-panel about-panel">
-            <h2>{t.helpTitle}</h2>
-
-            <h3>{t.helpWindowOps}</h3>
-            <ul>
-              {t.helpWindowOpsItems.map(([label, desc], i) => (
-                <li key={i}><b>{label}：</b>{desc}</li>
-              ))}
-            </ul>
-
-            <h3>{t.helpClipboard}</h3>
-            <ul>
-              {t.helpClipboardItems.map(([label, desc], i) => (
-                <li key={i}><b>{label}：</b>{desc}</li>
-              ))}
-            </ul>
-
-            <h3>{t.helpGroups}</h3>
-            <ul>
-              {t.helpGroupsItems.map(([label, desc], i) => (
-                <li key={i}><b>{label}：</b>{desc}</li>
-              ))}
-            </ul>
-
-            <h3>{t.helpKeyboard}</h3>
-            <ul>
-              {t.helpKeyboardItems.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))}
-            </ul>
-
-            <h3>{t.helpSettings}</h3>
-            <ul>
-              {t.helpSettingsItems.map(([label, desc], i) => (
-                <li key={i}><b>{label}：</b>{desc}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {activeTab === "about" ? (
-          <AboutPanel />
-        ) : null}
-      </section>
-
-      {confirm ? (
-        <div className="confirm-overlay" onClick={() => setConfirm(null)}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <p>{confirm.message}</p>
-            <div className="confirm-dialog__actions">
-              <button
-                onClick={async () => {
-                  try {
-                    if (confirm.onCancel) {
-                      await confirm.onCancel();
-                    }
-                  } catch (err) {
-                    console.error("操作失败:", err);
-                    showNotice(t.operationFailed);
-                  } finally {
-                    setConfirm(null);
-                  }
-                }}
-              >
-                {confirm.cancelLabel ?? t.cancel}
-              </button>
-              <button
-                className={confirm.cancelLabel ? "primary" : "danger"}
-                onClick={async () => {
-                  try {
-                    await confirm.onConfirm();
-                  } catch (err) {
-                    console.error("操作失败:", err);
-                    showNotice(t.operationFailed);
-                  } finally {
-                    setConfirm(null);
-                  }
-                }}
-              >
-                {confirm.confirmLabel ?? t.confirm}
-              </button>
             </div>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {notice ? <div className="toast">{notice}</div> : null}
-    </main>
+        {notice ? <div className="toast">{notice}</div> : null}
+      </main>
   );
 }

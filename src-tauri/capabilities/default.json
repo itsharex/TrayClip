@@ -4,6 +4,7 @@
   "windows": ["main", "quick-panel"],
   "permissions": [
     "core:default",
+    "app:default",
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-show",
