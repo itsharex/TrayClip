@@ -257,7 +257,7 @@ pub fn set_dragging(state: State<'_, AppState>, dragging: bool) -> Result<(), St
     Ok(())
 }
 
-const GITHUB_REPO: &str = "OWNER/REPO"; // TODO: change to your repo
+const GITHUB_REPO: &str = "Heyiki/TrayClip";
 
 #[derive(serde::Serialize)]
 pub struct UpdateInfo {
