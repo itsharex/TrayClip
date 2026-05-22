@@ -1,4 +1,6 @@
 use std::sync::Arc;
+#[cfg(target_os = "linux")]
+use arboard::Clipboard;
 use parking_lot::{Mutex, RwLock};
 use rusqlite::Connection;
 
@@ -11,4 +13,6 @@ pub struct AppState {
     pub permissions: RwLock<PermissionState>,
     pub last_clip_signature: Mutex<Option<String>>,
     pub is_dragging: Arc<Mutex<bool>>,
+    #[cfg(target_os = "linux")]
+    pub clipboard: Mutex<Clipboard>,
 }

@@ -92,6 +92,8 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
         permissions: RwLock::new(models::PermissionState::default()),
         last_clip_signature: Mutex::new(None),
         is_dragging: std::sync::Arc::new(Mutex::new(false)),
+        #[cfg(target_os = "linux")]
+        clipboard: Mutex::new(arboard::Clipboard::new().context("failed to initialize clipboard")?),
     })
 }
 
@@ -213,8 +215,18 @@ fn main() {
             app.manage(state);
             {
                 let state = app.state::<AppState>();
-                if let Ok(Some(signature)) = clipboard::peek_clipboard_signature(&state.paths) {
-                    *state.last_clip_signature.lock() = Some(signature);
+                #[cfg(target_os = "linux")]
+                {
+                    let mut cb = state.clipboard.lock();
+                    if let Ok(Some(signature)) = clipboard::peek_signature_with_state(&state.paths, &mut cb) {
+                        *state.last_clip_signature.lock() = Some(signature);
+                    }
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    if let Ok(Some(signature)) = clipboard::peek_clipboard_signature(&state.paths) {
+                        *state.last_clip_signature.lock() = Some(signature);
+                    }
                 }
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());

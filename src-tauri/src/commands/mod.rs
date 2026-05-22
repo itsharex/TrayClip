@@ -18,7 +18,15 @@ fn recopy_clip_impl(state: &State<'_, AppState>, clip_id: i64) -> Result<(), Str
         db::mark_clip_used(&conn, clip_id).map_err(runtime_error)?;
         record
     };
-    clipboard::write_clipboard(&record).map_err(runtime_error)
+    #[cfg(target_os = "linux")]
+    {
+        let mut cb = state.clipboard.lock();
+        clipboard::write_clipboard_with_state(&record, &mut cb).map_err(runtime_error)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        clipboard::write_clipboard(&record).map_err(runtime_error)
+    }
 }
 
 #[tauri::command]

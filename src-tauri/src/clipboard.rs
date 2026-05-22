@@ -34,6 +34,16 @@ use windows_sys::Win32::{
 const CF_HDROP: u32 = 15;
 
 pub fn read_clipboard(paths: &AppPaths) -> anyhow::Result<Option<(String, NewClipRecord)>> {
+    let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
+    read_clipboard_with_clipboard(paths, &mut clipboard)
+}
+
+#[cfg(target_os = "linux")]
+pub fn read_clipboard_with_state(paths: &AppPaths, clipboard: &mut Clipboard) -> anyhow::Result<Option<(String, NewClipRecord)>> {
+    read_clipboard_with_clipboard(paths, clipboard)
+}
+
+fn read_clipboard_with_clipboard(paths: &AppPaths, clipboard: &mut Clipboard) -> anyhow::Result<Option<(String, NewClipRecord)>> {
     #[cfg(target_os = "windows")]
     if let Some(file_paths) = read_windows_file_paths()? {
         if !file_paths.is_empty() {
@@ -55,8 +65,6 @@ pub fn read_clipboard(paths: &AppPaths) -> anyhow::Result<Option<(String, NewCli
             )));
         }
     }
-
-    let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
 
     if let Ok(image) = clipboard.get_image() {
         let bytes = image.bytes.as_ref();
@@ -114,6 +122,16 @@ pub fn read_clipboard(paths: &AppPaths) -> anyhow::Result<Option<(String, NewCli
 }
 
 pub fn peek_clipboard_signature(_paths: &AppPaths) -> anyhow::Result<Option<String>> {
+    let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
+    peek_signature_with_clipboard(_paths, &mut clipboard)
+}
+
+#[cfg(target_os = "linux")]
+pub fn peek_signature_with_state(_paths: &AppPaths, clipboard: &mut Clipboard) -> anyhow::Result<Option<String>> {
+    peek_signature_with_clipboard(_paths, clipboard)
+}
+
+fn peek_signature_with_clipboard(_paths: &AppPaths, clipboard: &mut Clipboard) -> anyhow::Result<Option<String>> {
     #[cfg(target_os = "windows")]
     if let Some(file_paths) = read_windows_file_paths()? {
         if !file_paths.is_empty() {
@@ -122,8 +140,6 @@ pub fn peek_clipboard_signature(_paths: &AppPaths) -> anyhow::Result<Option<Stri
             return Ok(Some(content_hash));
         }
     }
-
-    let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
 
     if let Ok(image) = clipboard.get_image() {
         let bytes = image.bytes.as_ref();
@@ -150,7 +166,15 @@ pub fn peek_clipboard_signature(_paths: &AppPaths) -> anyhow::Result<Option<Stri
 
 pub fn write_clipboard(record: &ClipRecord) -> anyhow::Result<()> {
     let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
+    write_clipboard_with_clipboard(record, &mut clipboard)
+}
 
+#[cfg(target_os = "linux")]
+pub fn write_clipboard_with_state(record: &ClipRecord, clipboard: &mut Clipboard) -> anyhow::Result<()> {
+    write_clipboard_with_clipboard(record, clipboard)
+}
+
+fn write_clipboard_with_clipboard(record: &ClipRecord, clipboard: &mut Clipboard) -> anyhow::Result<()> {
     match record.content_type {
         ClipContentType::PlainText => {
             clipboard.set_text(record.plain_text.clone().unwrap_or_else(|| record.summary.clone()))?;
