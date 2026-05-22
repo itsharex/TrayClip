@@ -51,6 +51,10 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
     let src_db = staging_dir.join("trayclip.db");
     let dst_db = root_dir.join("trayclip.db");
     if src_db.exists() {
+        // Remove destination first to avoid Windows file-lock issues with overwrite
+        let _ = std::fs::remove_file(&dst_db);
+        let _ = std::fs::remove_file(root_dir.join("trayclip.db-wal"));
+        let _ = std::fs::remove_file(root_dir.join("trayclip.db-shm"));
         let _ = std::fs::copy(&src_db, &dst_db);
     }
 
