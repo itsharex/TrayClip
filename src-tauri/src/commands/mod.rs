@@ -187,9 +187,8 @@ pub fn backup_data(state: State<'_, AppState>, save_path: String) -> Result<Stri
 }
 
 #[tauri::command]
-pub fn restore_backup(app: AppHandle, state: State<'_, AppState>, zip_path: String) -> Result<(), String> {
-    let paths = &state.paths;
-    let staging_dir = paths.root_dir.join("restore-staging");
+pub fn restore_backup(app: AppHandle, _state: State<'_, AppState>, zip_path: String) -> Result<(), String> {
+    let staging_dir = std::env::temp_dir().join("trayclip-restore-staging");
 
     // Clean up any previous staging
     if staging_dir.exists() {
@@ -217,8 +216,10 @@ pub fn restore_backup(app: AppHandle, state: State<'_, AppState>, zip_path: Stri
         }
     }
 
-    // Write restore marker
-    let marker_path = paths.root_dir.join(".restore-pending");
+    // Write restore marker to a guaranteed writable location
+    let marker_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&marker_dir).map_err(|e| e.to_string())?;
+    let marker_path = marker_dir.join(".restore-pending");
     std::fs::write(&marker_path, staging_dir.to_string_lossy().as_bytes()).map_err(|e| e.to_string())?;
 
     // Restart the app

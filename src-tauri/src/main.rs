@@ -17,8 +17,9 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 fn apply_pending_restore(app: &tauri::AppHandle) {
-    // Determine root_dir independently of AppPaths
     let resolver = app.path();
+
+    // Find root_dir (same logic as AppPaths::resolve)
     let install_dir = resolver
         .resource_dir()
         .or_else(|_| resolver.app_config_dir())
@@ -38,7 +39,11 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
 
     let Some(root_dir) = root_dir else { return };
 
-    let marker = root_dir.join(".restore-pending");
+    // Check for marker in app_data_dir (writable) first, then root_dir (legacy)
+    let marker = resolver.app_data_dir().ok()
+        .map(|d| d.join(".restore-pending"))
+        .filter(|p| p.exists())
+        .unwrap_or_else(|| root_dir.join(".restore-pending"));
     let Ok(staging_path) = std::fs::read_to_string(&marker) else { return };
 
     let staging_dir = std::path::PathBuf::from(&staging_path);
@@ -70,6 +75,8 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
     // Cleanup
     let _ = std::fs::remove_dir_all(&staging_dir);
     let _ = std::fs::remove_file(&marker);
+    // Also clean legacy marker location
+    let _ = std::fs::remove_file(root_dir.join(".restore-pending"));
 }
 
 fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) {
@@ -214,6 +221,10 @@ fn main() {
             None,
         ))
         .setup(|app| {
+            // Hide Dock icon on macOS — keep only the menu bar tray icon
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
             app.manage(state);

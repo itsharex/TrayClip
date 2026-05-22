@@ -15,7 +15,7 @@ interface SettingsPanelProps {
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
 
 const DEFAULT_HOTKEYS: Record<HotkeyActionKey, string> = {
-  open_main_window: isMac ? "Meta+Shift+Space" : "Ctrl+Shift+Space",
+  open_main_window: isMac ? "Meta+Shift+T" : "Ctrl+Shift+Space",
   open_quick_panel: isMac ? "Meta+Shift+C" : "Ctrl+Shift+V",
 };
 
