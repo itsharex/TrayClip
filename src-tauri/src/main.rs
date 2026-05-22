@@ -16,6 +16,71 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+fn apply_pending_restore(app: &tauri::AppHandle) {
+    // Determine root_dir independently of AppPaths
+    let resolver = app.path();
+    let install_dir = resolver
+        .resource_dir()
+        .or_else(|_| resolver.app_config_dir())
+        .or_else(|_| resolver.app_data_dir());
+    let Ok(install_dir) = install_dir else { return };
+
+    let candidate_dirs = [
+        install_dir.join("data"),
+        resolver.app_data_dir().unwrap_or_else(|_| install_dir.clone()),
+    ];
+
+    let root_dir = candidate_dirs
+        .iter()
+        .find(|dir| dir.join("trayclip.db").exists())
+        .cloned()
+        .or_else(|| candidate_dirs.iter().find(|dir| std::fs::create_dir_all(dir).is_ok()).cloned());
+
+    let Some(root_dir) = root_dir else { return };
+
+    let marker = root_dir.join(".restore-pending");
+    let Ok(staging_path) = std::fs::read_to_string(&marker) else { return };
+
+    let staging_dir = std::path::PathBuf::from(&staging_path);
+    if !staging_dir.exists() {
+        let _ = std::fs::remove_file(&marker);
+        return;
+    }
+
+    // Replace database
+    let src_db = staging_dir.join("trayclip.db");
+    let dst_db = root_dir.join("trayclip.db");
+    if src_db.exists() {
+        let _ = std::fs::copy(&src_db, &dst_db);
+    }
+
+    // Replace images
+    let src_images = staging_dir.join("images");
+    let dst_images = root_dir.join("images");
+    if src_images.exists() {
+        let _ = std::fs::remove_dir_all(&dst_images);
+        let _ = std::fs::create_dir_all(&dst_images);
+        copy_dir_recursive(&src_images, &dst_images);
+    }
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&staging_dir);
+    let _ = std::fs::remove_file(&marker);
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) {
+    for entry in std::fs::read_dir(src).into_iter().flatten().flatten() {
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            let _ = std::fs::create_dir_all(&dst_path);
+            copy_dir_recursive(&src_path, &dst_path);
+        } else {
+            let _ = std::fs::copy(&src_path, &dst_path);
+        }
+    }
+}
+
 fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
     let paths = paths::AppPaths::resolve(app)?;
     let conn = db::open_database(&paths)?;
@@ -143,6 +208,7 @@ fn main() {
             None,
         ))
         .setup(|app| {
+            apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
             app.manage(state);
             {
@@ -201,8 +267,6 @@ fn main() {
             commands::update_settings,
             commands::get_hotkeys,
             commands::update_hotkey_setting,
-            commands::export_history,
-            commands::import_history,
             commands::load_image_data_url,
             commands::get_permissions,
             commands::request_accessibility_permission,
@@ -213,9 +277,10 @@ fn main() {
             commands::set_dragging,
             commands::check_update,
             commands::get_installer_type,
-            commands::reload_global_shortcuts
+            commands::reload_global_shortcuts,
+            commands::backup_data,
+            commands::restore_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");
 }
-

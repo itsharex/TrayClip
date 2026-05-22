@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { checkUpdate, clearHistory, deleteClip, deleteGroup, exportHistory, getBootstrap, getInstallerType, hideWindow, importHistory, moveClipToGroup, pinToggle, quitApp, recopyClip, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, getInstallerType, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
@@ -112,8 +112,6 @@ export default function App() {
     return (localStorage.getItem("trayclip-theme") as "light" | "dark") || "light";
   });
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [exportFormat, setExportFormat] = useState<"json" | "csv">("json");
-  const [exportScope, setExportScope] = useState<"all" | "current_group" | "pinned">("all");
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const noticeTimerRef = useRef<number | null>(null);
@@ -361,29 +359,30 @@ export default function App() {
     });
   }, [load, showNotice, t]);
 
-  const handleExport = useCallback(async () => {
-    const outputDir = await open({ directory: true, title: t.selectExportDir });
-    if (!outputDir) return;
-    await exportHistory({
-      format: exportFormat,
-      scope: exportScope,
-      group_id: exportScope === "current_group" ? selectedGroupId : undefined,
-      output_dir: outputDir,
-    });
-    showNotice(t.exportSuccess);
-  }, [exportFormat, exportScope, selectedGroupId, showNotice, t]);
-
-  const handleImport = useCallback(async () => {
-    const filePath = await open({
-      multiple: false,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-      title: t.selectImportFile,
+  const handleBackup = useCallback(async () => {
+    const filePath = await save({
+      filters: [{ name: "ZIP", extensions: ["zip"] }],
+      defaultPath: `trayclip-backup-${new Date().toISOString().slice(0, 10)}.zip`,
     });
     if (!filePath) return;
-    const count = await importHistory(filePath as string);
-    await load();
-    showNotice(t.importSuccess(count));
-  }, [load, showNotice, t]);
+    await backupData(filePath);
+    showNotice(t.backupSuccess);
+  }, [showNotice, t]);
+
+  const handleRestore = useCallback(() => {
+    setConfirm({
+      message: t.confirmRestore,
+      confirmLabel: t.restore,
+      onConfirm: async () => {
+        const filePath = await open({
+          multiple: false,
+          filters: [{ name: "TrayClip Backup", extensions: ["zip"] }],
+        });
+        if (!filePath) return;
+        await restoreBackup(filePath as string);
+      },
+    });
+  }, [t]);
 
   const handleRecopy = useCallback(async (clipId: number) => {
     await recopyClip(clipId);
@@ -552,18 +551,13 @@ export default function App() {
                 <SettingsPanel
                     settings={state.settings}
                     hotkeys={state.hotkeys}
-                    exportFormat={exportFormat}
-                    exportScope={exportScope}
-                    hasCurrentGroup={selectedGroupId !== null}
                     onSettingsChange={saveSettings}
                     onHotkeyChange={async (actionKey, hotkeyValue) => {
                       await updateHotkey(actionKey, hotkeyValue);
                       await load();
                     }}
-                    onExportFormatChange={setExportFormat}
-                    onExportScopeChange={setExportScope}
-                    onExport={handleExport}
-                    onImport={handleImport}
+                    onBackup={handleBackup}
+                    onRestore={handleRestore}
                     onClearHistory={handleClearHistory}
                 />
               </section>

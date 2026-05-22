@@ -9,7 +9,6 @@ pub struct AppPaths {
     pub root_dir: PathBuf,
     pub db_path: PathBuf,
     pub images_dir: PathBuf,
-    pub exports_dir: PathBuf,
 }
 
 impl AppPaths {
@@ -40,16 +39,13 @@ impl AppPaths {
 
         let db_path = root_dir.join("trayclip.db");
         let images_dir = root_dir.join("images");
-        let exports_dir = root_dir.join("exports");
 
         std::fs::create_dir_all(&images_dir)?;
-        std::fs::create_dir_all(&exports_dir)?;
 
         Ok(Self {
             root_dir,
             db_path,
             images_dir,
-            exports_dir,
         })
     }
 }

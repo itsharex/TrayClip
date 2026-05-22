@@ -1,9 +1,11 @@
+use std::io::{Read as _, Write as _};
+
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::Position;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, ExportHistoryRequest, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
+use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
 
 fn runtime_error(error: anyhow::Error) -> String {
     error.to_string()
@@ -134,16 +136,85 @@ pub fn reload_global_shortcuts(handle: AppHandle) -> Result<(), String> {
     crate::register_global_shortcuts(&handle).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn export_history(state: State<'_, AppState>, payload: ExportHistoryRequest) -> Result<String, String> {
-    let conn = state.conn.lock();
-    db::export_history(&conn, &state.paths, &payload).map_err(runtime_error)
+fn add_dir_to_zip(
+    zip: &mut zip::ZipWriter<std::fs::File>,
+    dir: &std::path::Path,
+    prefix: &str,
+    options: zip::write::SimpleFileOptions,
+) -> anyhow::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = format!("{}/{}", prefix, entry.file_name().to_string_lossy());
+        if path.is_dir() {
+            add_dir_to_zip(zip, &path, &name, options)?;
+        } else {
+            zip.start_file(&name, options)?;
+            let bytes = std::fs::read(&path)?;
+            zip.write_all(&bytes)?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
-pub fn import_history(state: State<'_, AppState>, file_path: String) -> Result<i64, String> {
-    let conn = state.conn.lock();
-    db::import_history(&conn, &file_path).map_err(runtime_error)
+pub fn backup_data(state: State<'_, AppState>, save_path: String) -> Result<String, String> {
+    let paths = &state.paths;
+    let file = std::fs::File::create(&save_path).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+    // Add database
+    zip.start_file("trayclip.db", options).map_err(|e| e.to_string())?;
+    let db_bytes = std::fs::read(&paths.db_path).map_err(|e| e.to_string())?;
+    zip.write_all(&db_bytes).map_err(|e| e.to_string())?;
+
+    // Add images
+    if paths.images_dir.exists() {
+        add_dir_to_zip(&mut zip, &paths.images_dir, "images", options).map_err(|e| e.to_string())?;
+    }
+
+    zip.finish().map_err(|e| e.to_string())?;
+    Ok(save_path)
+}
+
+#[tauri::command]
+pub fn restore_backup(app: AppHandle, state: State<'_, AppState>, zip_path: String) -> Result<(), String> {
+    let paths = &state.paths;
+    let staging_dir = paths.root_dir.join("restore-staging");
+
+    // Clean up any previous staging
+    if staging_dir.exists() {
+        std::fs::remove_dir_all(&staging_dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
+
+    // Extract zip to staging
+    let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let entry_name = entry.name().to_string();
+        let out_path = staging_dir.join(&entry_name);
+
+        if entry_name.ends_with('/') {
+            std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+            std::fs::write(&out_path, &buf).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Write restore marker
+    let marker_path = paths.root_dir.join(".restore-pending");
+    std::fs::write(&marker_path, staging_dir.to_string_lossy().as_bytes()).map_err(|e| e.to_string())?;
+
+    // Restart the app
+    app.restart();
 }
 
 fn normalize_windows_path(file_path: &str) -> String {

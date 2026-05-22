@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
-use crate::{models::{AppSettings, ClipContentType, ClipGroup, ClipRecord, ExportHistoryRequest, HotkeySetting, ListClipsRequest, ListClipsResponse, NewClipRecord}, paths::AppPaths};
+use crate::{models::{AppSettings, ClipContentType, ClipGroup, ClipRecord, HotkeySetting, ListClipsRequest, ListClipsResponse, NewClipRecord}, paths::AppPaths};
 
 pub const SCHEMA_VERSION: i64 = 1;
 
@@ -392,93 +390,4 @@ pub fn mark_clip_used(conn: &Connection, clip_id: i64) -> anyhow::Result<()> {
         params![Utc::now().to_rfc3339(), clip_id],
     )?;
     Ok(())
-}
-
-pub fn export_history(conn: &Connection, paths: &AppPaths, payload: &ExportHistoryRequest) -> anyhow::Result<String> {
-    let mut request = ListClipsRequest {
-        page: 1,
-        page_size: 100000,
-        keyword: None,
-        group_id: payload.group_id,
-        pinned_only: Some(payload.scope == "pinned"),
-    };
-    if payload.scope != "current_group" {
-        request.group_id = None;
-    }
-
-    let clips = list_clips(conn, &request)?.items;
-    let output_dir = payload.output_dir.as_ref().map(PathBuf::from).unwrap_or_else(|| paths.exports_dir.clone());
-    std::fs::create_dir_all(&output_dir)?;
-    let filename = format!("trayclip-export-{}.{}", Utc::now().format("%Y%m%d-%H%M%S"), payload.format);
-    let output_path = output_dir.join(filename);
-
-    match payload.format.as_str() {
-        "json" => {
-            let content = serde_json::to_string_pretty(&clips)?;
-            std::fs::write(&output_path, content)?;
-        }
-        "csv" => {
-            let mut writer = csv::Writer::from_path(&output_path)?;
-            writer.write_record(["id", "content_type", "summary", "plain_text", "source_app", "is_pinned", "group_id", "created_at"])?;
-            for clip in clips {
-                writer.write_record([
-                    clip.id.to_string(),
-                    serde_json::to_string(&clip.content_type)?.trim_matches('"').to_string(),
-                    clip.summary,
-                    clip.plain_text.unwrap_or_default(),
-                    clip.source_app,
-                    clip.is_pinned.to_string(),
-                    clip.group_id.map(|value| value.to_string()).unwrap_or_default(),
-                    clip.created_at,
-                ])?;
-            }
-            writer.flush()?;
-        }
-        _ => anyhow::bail!("不支持的导出格式"),
-    }
-
-    Ok(output_path.to_string_lossy().to_string())
-}
-
-pub fn import_history(conn: &Connection, file_path: &str) -> anyhow::Result<i64> {
-    let content = std::fs::read_to_string(file_path)?;
-    let clips: Vec<ClipRecord> = serde_json::from_str(&content)?;
-    let mut imported = 0i64;
-
-    for clip in &clips {
-        let content_type = content_type_key(&clip.content_type);
-        let content_hash = compute_hash(&clip.content_type, &clip.plain_text, &clip.rich_text, &clip.file_paths, &clip.summary);
-
-        let exists: Option<i64> = conn
-            .query_row(
-                "SELECT id FROM clips WHERE content_type = ?1 AND content_hash = ?2 LIMIT 1",
-                params![content_type, content_hash],
-                |row| row.get(0),
-            )
-            .optional()?;
-
-        if exists.is_some() {
-            continue;
-        }
-
-        conn.execute(
-            "INSERT INTO clips(content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at, content_hash, position_updated_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?10, NULL, ?11, ?10)",
-            params![
-                content_type,
-                clip.plain_text,
-                clip.rich_text,
-                clip.summary,
-                clip.image_path,
-                serde_json::to_string(&clip.file_paths)?,
-                clip.source_app,
-                clip.is_pinned as i64,
-                clip.is_truncated as i64,
-                clip.created_at,
-                content_hash,
-            ],
-        )?;
-        imported += 1;
-    }
-
-    Ok(imported)
 }

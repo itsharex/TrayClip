@@ -67,10 +67,3 @@ export interface BootstrapPayload {
   hotkeys: HotkeySetting[];
   permissions: PermissionState;
 }
-
-export interface ExportHistoryRequest {
-  format: "json" | "csv";
-  scope: "all" | "current_group" | "pinned";
-  group_id?: number | null;
-  output_dir?: string | null;
-}

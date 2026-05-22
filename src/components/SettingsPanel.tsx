@@ -5,15 +5,10 @@ import { useTranslation, type Locale } from "../lib/i18n";
 interface SettingsPanelProps {
   settings: AppSettings;
   hotkeys: HotkeySetting[];
-  exportFormat: "json" | "csv";
-  exportScope: "all" | "current_group" | "pinned";
-  hasCurrentGroup: boolean;
   onSettingsChange: (next: AppSettings) => void;
   onHotkeyChange: (actionKey: HotkeyActionKey, hotkeyValue: string) => void;
-  onExportFormatChange: (format: "json" | "csv") => void;
-  onExportScopeChange: (scope: "all" | "current_group" | "pinned") => void;
-  onExport: () => void;
-  onImport: () => void;
+  onBackup: () => void;
+  onRestore: () => void;
   onClearHistory: () => void;
 }
 
@@ -85,36 +80,31 @@ function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecorderProps
   };
 
   return (
-    <div
-      ref={ref}
-      className={`hotkey-value${recording ? " recording" : ""}`}
-      tabIndex={0}
-      onClick={() => {
-        setRecording(true);
-        setPreview(t.pressHotkey);
-      }}
-      onBlur={handleBlur}
-      style={{ cursor: "pointer" }}
-    >
-      {recording ? preview : currentValue}
-    </div>
+      <div
+          ref={ref}
+          className={`hotkey-value${recording ? " recording" : ""}`}
+          tabIndex={0}
+          onClick={() => {
+            setRecording(true);
+            setPreview(t.pressHotkey);
+          }}
+          onBlur={handleBlur}
+          style={{ cursor: "pointer" }}
+      >
+        {recording ? preview : currentValue}
+      </div>
   );
 }
 
 export function SettingsPanel({
-  settings,
-  hotkeys,
-  exportFormat,
-  exportScope,
-  hasCurrentGroup,
-  onSettingsChange,
-  onHotkeyChange,
-  onExportFormatChange,
-  onExportScopeChange,
-  onExport,
-  onImport,
-  onClearHistory,
-}: SettingsPanelProps) {
+                                settings,
+                                hotkeys,
+                                onSettingsChange,
+                                onHotkeyChange,
+                                onBackup,
+                                onRestore,
+                                onClearHistory,
+                              }: SettingsPanelProps) {
   const { t, locale, setLocale } = useTranslation();
   const hotkeyMap = new Map(hotkeys.map((h) => [h.action_key, h.hotkey_value]));
 
@@ -124,124 +114,110 @@ export function SettingsPanel({
   };
 
   return (
-    <section className="settings-panel">
-      <div className="settings-section">
-        <h3>{t.dataManagement}</h3>
-        <div className="settings-row">
-          <label>{t.retentionLimit}</label>
-          <input
-            type="number"
-            min={50}
-            max={10000}
-            value={settings.retention_limit}
-            onChange={(event) => {
-              const clamped = Math.max(50, Math.min(10000, Number(event.target.value) || 50));
-              onSettingsChange({ ...settings, retention_limit: clamped });
-            }}
-          />
-        </div>
-        <div className="settings-row">
-          <label>{t.pauseCapture}</label>
-          <input
-            type="checkbox"
-            checked={settings.pause_capture}
-            onChange={(event) => onSettingsChange({ ...settings, pause_capture: event.target.checked })}
-          />
-        </div>
-        <div className="settings-stack-row">
-          <label>{t.contentExport}</label>
-          <div className="settings-inline-actions">
-            <select value={exportFormat} onChange={(event) => onExportFormatChange(event.target.value as "json" | "csv")}>
-              <option value="json">JSON</option>
-              <option value="csv">CSV</option>
-            </select>
-            <select value={exportScope} onChange={(event) => onExportScopeChange(event.target.value as "all" | "current_group" | "pinned")}>
-              <option value="all">{t.allScope}</option>
-              <option value="current_group" disabled={!hasCurrentGroup}>{t.currentGroupScope}</option>
-              <option value="pinned">{t.pinnedScope}</option>
-            </select>
-            <button onClick={onExport}>{t.export}</button>
-          </div>
-        </div>
-        <div className="settings-stack-row">
-          <label>{t.contentImport}</label>
-          <div className="settings-inline-actions">
-            <button onClick={onImport}>{t.importJSON}</button>
-          </div>
-        </div>
-        <div className="settings-stack-row settings-stack-row--danger">
-          <label>{t.clearHistory}</label>
-          <div className="settings-inline-actions">
-            <button className="danger" onClick={onClearHistory}>{t.clear}</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="settings-section">
-        <h3>{t.systemBehavior}</h3>
-        <div className="settings-row">
-          <label>{t.launchOnStartup}</label>
-          <input
-            type="checkbox"
-            checked={settings.launch_on_startup}
-            onChange={(event) => onSettingsChange({ ...settings, launch_on_startup: event.target.checked })}
-          />
-        </div>
-        <div className="settings-row">
-          <label>{t.closeBehavior}</label>
-          <select
-            value={settings.close_behavior}
-            onChange={(event) => onSettingsChange({ ...settings, close_behavior: event.target.value as "hide" | "exit" | "ask" })}
-          >
-            <option value="hide">{t.hideToTrayRecommended}</option>
-            <option value="exit">{t.exitDirectly}</option>
-            <option value="ask">{t.askEveryTime}</option>
-          </select>
-        </div>
-        <div className="settings-row">
-          <label>{t.panelPosition}</label>
-          <select
-            value={settings.panel_position}
-            onChange={(event) => onSettingsChange({ ...settings, panel_position: event.target.value as "center" | "follow_mouse" })}
-          >
-            <option value="center">{t.centerScreen}</option>
-            <option value="follow_mouse">{t.followMouse}</option>
-          </select>
-        </div>
-        <div className="settings-row">
-          <label>{locale === "en" ? "Language" : "语言"}</label>
-          <select
-            value={locale}
-            onChange={(event) => setLocale(event.target.value as Locale)}
-          >
-            <option value="zh-CN">中文</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="settings-section">
-        <h3>{t.hotkeys}</h3>
-        {(Object.keys(HOTKEY_LABELS) as HotkeyActionKey[]).map((actionKey) => (
-          <div key={actionKey} className="hotkey-row">
-            <span className="hotkey-label">{HOTKEY_LABELS[actionKey]}</span>
-            <div className="hotkey-input-group">
-              <HotkeyRecorder
-                actionKey={actionKey}
-                currentValue={hotkeyMap.get(actionKey) ?? DEFAULT_HOTKEYS[actionKey]}
-                onSave={onHotkeyChange}
-              />
-              <button
-                className="ghost"
-                onClick={() => onHotkeyChange(actionKey, DEFAULT_HOTKEYS[actionKey])}
-                title={t.restoreDefault}
-              >
-                {t.restoreDefault}
-              </button>
+      <section className="settings-panel">
+        <div className="settings-section">
+          <h3>{t.dataManagement}</h3>
+          <div className="settings-stack-row">
+            <label>{t.backupData}</label>
+            <div className="settings-inline-actions">
+              <button onClick={onBackup}>{t.backup}</button>
+              <button onClick={onRestore}>{t.restore}</button>
             </div>
           </div>
-        ))}
-      </div>
-    </section>
+          <div className="settings-row">
+            <label>{t.retentionLimit}</label>
+            <input
+                type="number"
+                min={50}
+                max={10000}
+                value={settings.retention_limit}
+                onChange={(event) => {
+                  const clamped = Math.max(50, Math.min(10000, Number(event.target.value) || 50));
+                  onSettingsChange({ ...settings, retention_limit: clamped });
+                }}
+            />
+          </div>
+          <div className="settings-row">
+            <label>{t.pauseCapture}</label>
+            <input
+                type="checkbox"
+                checked={settings.pause_capture}
+                onChange={(event) => onSettingsChange({ ...settings, pause_capture: event.target.checked })}
+            />
+          </div>
+          <div className="settings-stack-row settings-stack-row--danger">
+            <label>{t.clearHistory}</label>
+            <div className="settings-inline-actions">
+              <button className="danger" onClick={onClearHistory}>{t.clear}</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>{t.systemBehavior}</h3>
+          <div className="settings-row">
+            <label>{t.launchOnStartup}</label>
+            <input
+                type="checkbox"
+                checked={settings.launch_on_startup}
+                onChange={(event) => onSettingsChange({ ...settings, launch_on_startup: event.target.checked })}
+            />
+          </div>
+          <div className="settings-row">
+            <label>{t.closeBehavior}</label>
+            <select
+                value={settings.close_behavior}
+                onChange={(event) => onSettingsChange({ ...settings, close_behavior: event.target.value as "hide" | "exit" | "ask" })}
+            >
+              <option value="hide">{t.hideToTrayRecommended}</option>
+              <option value="exit">{t.exitDirectly}</option>
+              <option value="ask">{t.askEveryTime}</option>
+            </select>
+          </div>
+          <div className="settings-row">
+            <label>{t.panelPosition}</label>
+            <select
+                value={settings.panel_position}
+                onChange={(event) => onSettingsChange({ ...settings, panel_position: event.target.value as "center" | "follow_mouse" })}
+            >
+              <option value="center">{t.centerScreen}</option>
+              <option value="follow_mouse">{t.followMouse}</option>
+            </select>
+          </div>
+          <div className="settings-row">
+            <label>{locale === "en" ? "Language" : "语言"}</label>
+            <select
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as Locale)}
+            >
+              <option value="zh-CN">中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>{t.hotkeys}</h3>
+          {(Object.keys(HOTKEY_LABELS) as HotkeyActionKey[]).map((actionKey) => (
+              <div key={actionKey} className="hotkey-row">
+                <span className="hotkey-label">{HOTKEY_LABELS[actionKey]}</span>
+                <div className="hotkey-input-group">
+                  <HotkeyRecorder
+                      actionKey={actionKey}
+                      currentValue={hotkeyMap.get(actionKey) ?? DEFAULT_HOTKEYS[actionKey]}
+                      onSave={onHotkeyChange}
+                  />
+                  <button
+                      className="ghost"
+                      onClick={() => onHotkeyChange(actionKey, DEFAULT_HOTKEYS[actionKey])}
+                      title={t.restoreDefault}
+                  >
+                    {t.restoreDefault}
+                  </button>
+                </div>
+              </div>
+          ))}
+        </div>
+      </section>
   );
 }

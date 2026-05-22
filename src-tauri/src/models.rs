@@ -98,14 +98,6 @@ pub struct ListClipsResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportHistoryRequest {
-    pub format: String,
-    pub scope: String,
-    pub group_id: Option<i64>,
-    pub output_dir: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapPayload {
     pub clips: ListClipsResponse,
     pub groups: Vec<ClipGroup>,

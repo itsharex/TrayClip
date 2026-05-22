@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings, BootstrapPayload, ClipGroup, ExportHistoryRequest, HotkeyActionKey, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState } from "./types";
+import type { AppSettings, BootstrapPayload, ClipGroup, HotkeyActionKey, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState } from "./types";
 
 export const getBootstrap = () => invoke<BootstrapPayload>("get_bootstrap");
 export const listClips = (payload: ListClipsRequest) => invoke<ListClipsResponse>("list_clips", { payload });
@@ -19,8 +19,6 @@ export const updateHotkey = async (actionKey: HotkeyActionKey, hotkeyValue: stri
   await invoke("reload_global_shortcuts");
   return result;
 };
-export const exportHistory = (payload: ExportHistoryRequest) => invoke<string>("export_history", { payload });
-export const importHistory = (filePath: string) => invoke<number>("import_history", { filePath });
 export const loadImageDataUrl = (filePath: string) => invoke<string>("load_image_data_url", { filePath });
 export const getPermissions = () => invoke<PermissionState>("get_permissions");
 export const requestAccessibilityPermission = () => invoke<boolean>("request_accessibility_permission");
@@ -40,3 +38,7 @@ export interface UpdateInfo {
 export const checkUpdate = (currentVersion: string, installerType: string) => invoke<UpdateInfo>("check_update", { currentVersion, installerType });
 
 export const getInstallerType = () => invoke<string>("get_installer_type");
+
+export const backupData = (savePath: string) => invoke<string>("backup_data", { savePath });
+
+export const restoreBackup = (zipPath: string) => invoke<void>("restore_backup", { zipPath });
