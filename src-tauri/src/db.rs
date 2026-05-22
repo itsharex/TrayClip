@@ -102,14 +102,28 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
         [],
     )?;
 
-    conn.execute(
-        "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Ctrl+Shift+Space')",
-        [],
-    )?;
-    conn.execute(
-        "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Ctrl+Shift+V')",
-        [],
-    )?;
+    #[cfg(target_os = "macos")]
+    {
+        conn.execute(
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Meta+Shift+Space')",
+            [],
+        )?;
+        conn.execute(
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Meta+Shift+C')",
+            [],
+        )?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        conn.execute(
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Ctrl+Shift+Space')",
+            [],
+        )?;
+        conn.execute(
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Ctrl+Shift+V')",
+            [],
+        )?;
+    }
     Ok(())
 }
 

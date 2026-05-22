@@ -12,10 +12,20 @@ interface SettingsPanelProps {
   onClearHistory: () => void;
 }
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
+
 const DEFAULT_HOTKEYS: Record<HotkeyActionKey, string> = {
-  open_main_window: "Ctrl+Shift+Space",
-  open_quick_panel: "Ctrl+Shift+V",
+  open_main_window: isMac ? "Meta+Shift+Space" : "Ctrl+Shift+Space",
+  open_quick_panel: isMac ? "Meta+Shift+C" : "Ctrl+Shift+V",
 };
+
+const SPECIAL_KEYS: Record<string, string> = {
+  " ": "Space",
+};
+
+function normalizeKey(key: string): string {
+  return SPECIAL_KEYS[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+}
 
 function formatModifiers(event: KeyboardEvent): string[] {
   const mods: string[] = [];
@@ -28,6 +38,13 @@ function formatModifiers(event: KeyboardEvent): string[] {
 
 function isModifierKey(key: string): boolean {
   return ["Control", "Alt", "Shift", "Meta"].includes(key);
+}
+
+const MAC_SYMBOLS: Record<string, string> = { Meta: "⌘", Alt: "⌥", Shift: "⇧", Ctrl: "⌃", Space: "Space" };
+
+function formatHotkeyDisplay(combo: string): string {
+  if (!isMac) return combo;
+  return combo.split("+").map((p) => MAC_SYMBOLS[p] ?? p).join("");
 }
 
 interface HotkeyRecorderProps {
@@ -61,7 +78,7 @@ function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecorderProps
       }
 
       const parts = formatModifiers(e);
-      parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+      parts.push(normalizeKey(e.key));
       const combo = parts.join("+");
       setRecording(false);
       setPreview("");
@@ -91,7 +108,7 @@ function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecorderProps
           onBlur={handleBlur}
           style={{ cursor: "pointer" }}
       >
-        {recording ? preview : currentValue}
+        {recording ? preview : formatHotkeyDisplay(currentValue)}
       </div>
   );
 }
