@@ -1,5 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "fs";
+
+const tauriConf = JSON.parse(readFileSync("./src-tauri/tauri.conf.json", "utf-8"));
+process.env.TAURI_ENV_VERSION ??= tauriConf.version;
 
 export default defineConfig({
   plugins: [react()],

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, getInstallerType, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
@@ -55,7 +56,8 @@ function AboutPanel() {
     setResult(null);
     setError(null);
     try {
-      const info = await checkUpdate(version, installerType);
+      const runtimeVersion = await getVersion();
+      const info = await checkUpdate(runtimeVersion, installerType);
       setResult(info);
     } catch (e) {
       setError(String(e));
