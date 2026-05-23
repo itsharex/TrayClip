@@ -31,20 +31,28 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
         resolver.app_data_dir().unwrap_or_else(|_| install_dir.clone()),
     ];
 
-    let root_dir = candidate_dirs
+    let default_root_dir = candidate_dirs
         .iter()
         .find(|dir| dir.join("trayclip.db").exists())
         .cloned()
         .or_else(|| candidate_dirs.iter().find(|dir| std::fs::create_dir_all(dir).is_ok()).cloned());
 
-    let Some(root_dir) = root_dir else { return };
+    let Some(default_root_dir) = default_root_dir else { return };
 
     // Check for marker in app_data_dir (writable) first, then root_dir (legacy)
     let marker = resolver.app_data_dir().ok()
         .map(|d| d.join(".restore-pending"))
         .filter(|p| p.exists())
-        .unwrap_or_else(|| root_dir.join(".restore-pending"));
-    let Ok(staging_path) = std::fs::read_to_string(&marker) else { return };
+        .unwrap_or_else(|| default_root_dir.join(".restore-pending"));
+    let Ok(marker_content) = std::fs::read_to_string(&marker) else { return };
+
+    let mut lines = marker_content.lines();
+    let staging_path = lines.next().unwrap_or("").to_string();
+    // Second line is the root_dir written by restore_backup (uses the same AppPaths::resolve)
+    let root_dir = lines.next()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists())
+        .unwrap_or(default_root_dir);
 
     let staging_dir = std::path::PathBuf::from(&staging_path);
     if !staging_dir.exists() {
@@ -52,15 +60,22 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
         return;
     }
 
+    eprintln!("[restore] staging_dir={}, root_dir={}", staging_dir.display(), root_dir.display());
+
     // Replace database
     let src_db = staging_dir.join("trayclip.db");
     let dst_db = root_dir.join("trayclip.db");
     if src_db.exists() {
-        // Remove destination first to avoid Windows file-lock issues with overwrite
+        // Remove destination first to avoid file-lock issues with overwrite
         let _ = std::fs::remove_file(&dst_db);
         let _ = std::fs::remove_file(root_dir.join("trayclip.db-wal"));
         let _ = std::fs::remove_file(root_dir.join("trayclip.db-shm"));
-        let _ = std::fs::copy(&src_db, &dst_db);
+        match std::fs::copy(&src_db, &dst_db) {
+            Ok(bytes) => eprintln!("[restore] db copy ok, {} bytes", bytes),
+            Err(e) => eprintln!("[restore] db copy failed: {}", e),
+        }
+    } else {
+        eprintln!("[restore] source db not found at {}", src_db.display());
     }
 
     // Replace images
@@ -68,7 +83,9 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
     let dst_images = root_dir.join("images");
     if src_images.exists() {
         let _ = std::fs::remove_dir_all(&dst_images);
-        let _ = std::fs::create_dir_all(&dst_images);
+        if let Err(e) = std::fs::create_dir_all(&dst_images) {
+            eprintln!("[restore] failed to create images dir: {}", e);
+        }
         copy_dir_recursive(&src_images, &dst_images);
     }
 
@@ -227,6 +244,18 @@ fn main() {
 
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
+            // Sync autostart with saved setting
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let autostart_result = if state.settings.read().launch_on_startup {
+                    app.autolaunch().enable()
+                } else {
+                    app.autolaunch().disable()
+                };
+                if let Err(e) = autostart_result {
+                    eprintln!("[autostart] failed to sync on startup: {}", e);
+                }
+            }
             app.manage(state);
             {
                 let state = app.state::<AppState>();

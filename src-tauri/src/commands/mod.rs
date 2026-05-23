@@ -3,6 +3,7 @@ use std::io::{Read as _, Write as _};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::Position;
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
@@ -115,11 +116,20 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn update_settings(state: State<'_, AppState>, payload: AppSettings) -> Result<AppSettings, String> {
+pub fn update_settings(app: AppHandle, state: State<'_, AppState>, payload: AppSettings) -> Result<AppSettings, String> {
     let next_settings = {
         let conn = state.conn.lock();
         db::save_settings(&conn, &payload).map_err(runtime_error)?
     };
+    // Sync launch_on_startup to OS autostart
+    let autostart_result = if next_settings.launch_on_startup {
+        app.autolaunch().enable()
+    } else {
+        app.autolaunch().disable()
+    };
+    if let Err(e) = autostart_result {
+        eprintln!("[autostart] failed to update: {}", e);
+    }
     *state.settings.write() = next_settings.clone();
     Ok(next_settings)
 }
@@ -187,7 +197,7 @@ pub fn backup_data(state: State<'_, AppState>, save_path: String) -> Result<Stri
 }
 
 #[tauri::command]
-pub fn restore_backup(app: AppHandle, _state: State<'_, AppState>, zip_path: String) -> Result<(), String> {
+pub fn restore_backup(app: AppHandle, state: State<'_, AppState>, zip_path: String) -> Result<(), String> {
     let staging_dir = std::env::temp_dir().join("trayclip-restore-staging");
 
     // Clean up any previous staging
@@ -216,11 +226,13 @@ pub fn restore_backup(app: AppHandle, _state: State<'_, AppState>, zip_path: Str
         }
     }
 
-    // Write restore marker to a guaranteed writable location
+    // Write restore marker with both staging and destination paths
+    // so apply_pending_restore uses the same root_dir as AppPaths::resolve
     let marker_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&marker_dir).map_err(|e| e.to_string())?;
     let marker_path = marker_dir.join(".restore-pending");
-    std::fs::write(&marker_path, staging_dir.to_string_lossy().as_bytes()).map_err(|e| e.to_string())?;
+    let marker_content = format!("{}\n{}", staging_dir.display(), state.paths.root_dir.display());
+    std::fs::write(&marker_path, marker_content).map_err(|e| e.to_string())?;
 
     // Restart the app
     app.restart();

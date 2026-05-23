@@ -105,11 +105,11 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     {
         conn.execute(
-            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Meta+Shift+T')",
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Meta+Alt+T')",
             [],
         )?;
         conn.execute(
-            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Meta+Shift+C')",
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Meta+Alt+C')",
             [],
         )?;
     }
