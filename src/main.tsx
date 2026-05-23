@@ -8,6 +8,11 @@ import "./styles.css";
 
 const label = getCurrentWindow().label;
 
+// Add platform class for macOS-specific styling (e.g. window border-radius)
+if (/Mac|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent)) {
+    document.documentElement.classList.add("is-mac");
+}
+
 document.addEventListener("contextmenu", (e) => {
     const el = e.target as HTMLElement;
     if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && !el.isContentEditable) {

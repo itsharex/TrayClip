@@ -526,7 +526,7 @@ export default function App() {
 
                 <section className="content-column">
                   <div className="content-toolbar">
-                    <span className="content-count">{t.recordsCount(filteredClips.length)}</span>
+                    <span className="content-count">{t.recordsCount(!search && selectedGroupId === null ? state.clips.total : filteredClips.length)}</span>
                   </div>
 
                   <HistoryList

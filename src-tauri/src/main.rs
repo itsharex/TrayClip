@@ -247,13 +247,13 @@ fn main() {
             // Sync autostart with saved setting
             {
                 use tauri_plugin_autostart::ManagerExt;
-                let autostart_result = if state.settings.read().launch_on_startup {
-                    app.autolaunch().enable()
-                } else {
-                    app.autolaunch().disable()
-                };
-                if let Err(e) = autostart_result {
-                    eprintln!("[autostart] failed to sync on startup: {}", e);
+                let launch = app.autolaunch();
+                let want_enabled = state.settings.read().launch_on_startup;
+                let currently_enabled = launch.is_enabled().unwrap_or(false);
+                if want_enabled && !currently_enabled {
+                    let _ = launch.enable().map_err(|e| eprintln!("[autostart] enable failed: {}", e));
+                } else if !want_enabled && currently_enabled {
+                    let _ = launch.disable().map_err(|e| eprintln!("[autostart] disable failed: {}", e));
                 }
             }
             app.manage(state);

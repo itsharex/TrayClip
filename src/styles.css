@@ -127,6 +127,13 @@ button.ghost.danger:hover {
   overflow: hidden;
 }
 
+/* macOS: add window border-radius (transparent: true in tauri.conf.json) */
+html.is-mac .app-shell {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
 /* Window Bar */
 .window-bar {
   flex-shrink: 0;

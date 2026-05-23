@@ -122,13 +122,15 @@ pub fn update_settings(app: AppHandle, state: State<'_, AppState>, payload: AppS
         db::save_settings(&conn, &payload).map_err(runtime_error)?
     };
     // Sync launch_on_startup to OS autostart
-    let autostart_result = if next_settings.launch_on_startup {
-        app.autolaunch().enable()
-    } else {
-        app.autolaunch().disable()
-    };
-    if let Err(e) = autostart_result {
-        eprintln!("[autostart] failed to update: {}", e);
+    {
+        let launch = app.autolaunch();
+        let want = next_settings.launch_on_startup;
+        let current = launch.is_enabled().unwrap_or(false);
+        if want && !current {
+            let _ = launch.enable().map_err(|e| eprintln!("[autostart] enable failed: {}", e));
+        } else if !want && current {
+            let _ = launch.disable().map_err(|e| eprintln!("[autostart] disable failed: {}", e));
+        }
     }
     *state.settings.write() = next_settings.clone();
     Ok(next_settings)
@@ -178,6 +180,13 @@ fn add_dir_to_zip(
 #[tauri::command]
 pub fn backup_data(state: State<'_, AppState>, save_path: String) -> Result<String, String> {
     let paths = &state.paths;
+
+    // Force WAL checkpoint so all committed data is in the main .db file
+    {
+        let conn = state.conn.lock();
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").map_err(|e| e.to_string())?;
+    }
+
     let file = std::fs::File::create(&save_path).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipWriter::new(file);
     let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
