@@ -379,14 +379,13 @@ pub struct UpdateInfo {
 
 #[tauri::command]
 pub fn get_installer_type() -> String {
-    #[cfg(target_os = "windows")]
-    {
-        detect_windows_install_type().to_string()
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        "unknown".to_string()
-    }
+    static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CACHED.get_or_init(|| {
+        #[cfg(target_os = "windows")]
+        { detect_windows_install_type().to_string() }
+        #[cfg(not(target_os = "windows"))]
+        { "unknown".to_string() }
+    }).clone()
 }
 
 #[tauri::command]

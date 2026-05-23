@@ -19,8 +19,8 @@ TrayClip is a local-only clipboard manager focused on copy, paste, history, grou
 
 | Function | Windows / Linux | macOS       |
 |----------|----------------|-------------|
-| Open main window | `Ctrl+Shift+Space` | `⌘+⌥+T` |
-| Open quick panel | `Ctrl+Shift+V` | `⌘+⌥+C`     |
+| Open main window | `Ctrl+Shift+Space` | `⌃+⇧+P` |
+| Open quick panel | `Ctrl+Shift+V` | `⌃+P`     |
 
 Hotkeys can be customized in Settings.
 

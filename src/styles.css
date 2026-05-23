@@ -57,6 +57,12 @@ body {
   margin: 0;
 }
 
+/* macOS: make html/body transparent so rounded corners show through */
+html.is-mac,
+html.is-mac body {
+  background: transparent;
+}
+
 button,
 input,
 select {

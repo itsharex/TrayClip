@@ -39,17 +39,12 @@ interface ConfirmState {
   onCancel?: () => Promise<void> | void;
 }
 
-function AboutPanel() {
+function AboutPanel({ installerType }: { installerType: string }) {
   const { t } = useTranslation();
   const version = useAppVersion();
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<{ has_update: boolean; latest_version: string; download_url: string; body: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [installerType, setInstallerType] = useState("exe");
-
-  useEffect(() => {
-    getInstallerType().then(setInstallerType).catch(() => {});
-  }, []);
 
   const handleCheck = async () => {
     setChecking(true);
@@ -116,8 +111,12 @@ export default function App() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [installerType, setInstallerType] = useState("exe");
   const noticeTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Pre-fetch installer type at app level so AboutPanel is instant
+  useEffect(() => { getInstallerType().then(setInstallerType).catch(() => {}); }, []);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(state.settings);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -607,7 +606,7 @@ export default function App() {
           ) : null}
 
           {activeTab === "about" ? (
-              <AboutPanel />
+              <AboutPanel installerType={installerType} />
           ) : null}
         </section>
 
