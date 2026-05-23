@@ -15,6 +15,9 @@
     "dialog:allow-open",
     "fs:default",
     "global-shortcut:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     "opener:default"
   ]
 }
