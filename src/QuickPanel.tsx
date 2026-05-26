@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getBootstrap, hideQuickPanel, setDragging, pinToggle, recopyClip, moveClipToGroup, deleteClip } from "./lib/api";
-import type { BootstrapPayload } from "./lib/types";
+import type { AppSettings, BootstrapPayload } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { HistoryList } from "./components/HistoryList";
 
@@ -22,6 +22,7 @@ const fallback: BootstrapPayload = {
     accessibility_prompted: false,
     close_behavior: "hide",
     panel_position: "center",
+    quick_paste: false,
   },
   hotkeys: [],
   permissions: {
@@ -65,6 +66,7 @@ export default function QuickPanel() {
     let unlistenClips: (() => void) | undefined;
     let unlistenFocus: (() => void) | undefined;
     let unlistenTheme: (() => void) | undefined;
+    let unlistenSettings: (() => void) | undefined;
 
     void listen("clips://updated", () => { void load(); }).then((fn) => { unlistenClips = fn; });
     void listen("focus-quick-search", () => {
@@ -75,12 +77,16 @@ export default function QuickPanel() {
     void listen<string>("theme://changed", (e) => {
       document.documentElement.setAttribute("data-theme", e.payload);
     }).then((fn) => { unlistenTheme = fn; });
+    void listen<AppSettings>("settings://changed", (e) => {
+      setState((current) => ({ ...current, settings: e.payload }));
+    }).then((fn) => { unlistenSettings = fn; });
 
     return () => {
       if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
       unlistenClips?.();
       unlistenFocus?.();
       unlistenTheme?.();
+      unlistenSettings?.();
     };
   }, [load]);
 
@@ -107,8 +113,8 @@ export default function QuickPanel() {
 
   const handleRecopy = useCallback(async (clipId: number) => {
     await recopyClip(clipId);
-    void hideQuickPanel();
-  }, []);
+    await hideQuickPanel(state.settings.quick_paste);
+  }, [state.settings.quick_paste]);
 
   const handleDeleteClip = useCallback((clipId: number) => {
     setConfirm({

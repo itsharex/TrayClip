@@ -13,6 +13,7 @@ interface SettingsPanelProps {
 }
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
+const isWindows = typeof navigator !== "undefined" && /Win/.test(navigator.platform ?? navigator.userAgent);
 
 const DEFAULT_HOTKEYS: Record<HotkeyActionKey, string> = {
   open_main_window: isMac ? "Ctrl+Shift+P" : "Ctrl+Shift+Space",
@@ -162,6 +163,16 @@ export function SettingsPanel({
                 onChange={(event) => onSettingsChange({ ...settings, pause_capture: event.target.checked })}
             />
           </div>
+          {isWindows ? (
+              <div className="settings-row">
+                <label>{t.quickPaste}</label>
+                <input
+                    type="checkbox"
+                    checked={settings.quick_paste}
+                    onChange={(event) => onSettingsChange({ ...settings, quick_paste: event.target.checked })}
+                />
+              </div>
+          ) : null}
           <div className="settings-stack-row settings-stack-row--danger">
             <label>{t.clearHistory}</label>
             <div className="settings-inline-actions">

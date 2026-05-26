@@ -71,28 +71,31 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
   const otherPaths = isFilePaths ? clip.file_paths.filter((p) => !isImagePath(p)) : [];
   const singleImage = imagePaths.length === 1 && otherPaths.length === 0;
   const clipImageSrc = useImagePreview(clip.content_type === "image" ? clip.image_path : null);
+  const handleBodyDoubleClick = () => onRecopy(clip.id);
 
   return (
       <article className={`clip-card${clip.is_pinned ? " pinned" : ""}${selected ? " selected" : ""}`}>
-        <div className="clip-card__header">
-          <span className="clip-type">{t.contentType[clip.content_type] ?? clip.content_type}</span>
-          {clip.is_pinned ? <span className="clip-pin-badge">{t.pinned}</span> : null}
-          {clip.source_app && clip.source_app !== "—" ? <span className="clip-source">{clip.source_app}</span> : null}
-          <span className="clip-time">{new Date(clip.updated_at).toLocaleString("zh-CN")}</span>
-          {clip.is_truncated ? <span className="clip-tag">{t.contentTruncated}</span> : null}
+        <div className="clip-card__body" onDoubleClick={handleBodyDoubleClick}>
+          <div className="clip-card__header">
+            <span className="clip-type">{t.contentType[clip.content_type] ?? clip.content_type}</span>
+            {clip.is_pinned ? <span className="clip-pin-badge">{t.pinned}</span> : null}
+            {clip.source_app && clip.source_app !== "—" ? <span className="clip-source">{clip.source_app}</span> : null}
+            <span className="clip-time">{new Date(clip.updated_at).toLocaleString("zh-CN")}</span>
+            {clip.is_truncated ? <span className="clip-tag">{t.contentTruncated}</span> : null}
+          </div>
+
+          {clip.content_type === "image" && clip.image_path ? <img className="clip-image-preview" src={clipImageSrc ?? undefined} alt="clipboard image" /> : null}
+          {isFilePaths && imagePaths.length > 0 ? <div className="clip-file-images">{imagePaths.slice(0, 2).map((path) => <FileThumb key={path} path={path} />)}</div> : null}
+
+          {isFilePaths ? (
+              singleImage ? null : (
+                  <div className="clip-file-paths" title={clip.file_paths.join("\n")}>
+                    {otherPaths.slice(0, 2).map((path) => <div key={path} className="clip-file-path">{path}</div>)}
+                    {otherPaths.length > 2 ? <div className="clip-file-path clip-file-more">{t.moreFiles(otherPaths.length - 2)}</div> : null}
+                  </div>
+              )
+          ) : <div className="clip-summary" title={clip.plain_text || clip.summary}>{clip.summary}</div>}
         </div>
-
-        {clip.content_type === "image" && clip.image_path ? <img className="clip-image-preview" src={clipImageSrc ?? undefined} alt="clipboard image" /> : null}
-        {isFilePaths && imagePaths.length > 0 ? <div className="clip-file-images">{imagePaths.slice(0, 2).map((path) => <FileThumb key={path} path={path} />)}</div> : null}
-
-        {isFilePaths ? (
-            singleImage ? null : (
-                <div className="clip-file-paths" title={clip.file_paths.join("\n")}>
-                  {otherPaths.slice(0, 2).map((path) => <div key={path} className="clip-file-path">{path}</div>)}
-                  {otherPaths.length > 2 ? <div className="clip-file-path clip-file-more">{t.moreFiles(otherPaths.length - 2)}</div> : null}
-                </div>
-            )
-        ) : <div className="clip-summary" title={clip.plain_text || clip.summary}>{clip.summary}</div>}
 
         <div className="clip-actions">
           <button className="primary" onClick={() => onRecopy(clip.id)}>{t.copy}</button>
@@ -102,8 +105,8 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
         </div>
       </article>
   );
-}
 
+}
 interface HistoryListProps {
   clips: ClipRecord[];
   groups: ClipGroup[];

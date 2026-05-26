@@ -96,9 +96,17 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
         let _ = conn.execute("ALTER TABLE app_settings ADD COLUMN panel_position TEXT NOT NULL DEFAULT 'center'", []);
     }
 
+    // Migration: add quick_paste column if missing
+    let has_quick_paste: bool = conn
+        .prepare("SELECT quick_paste FROM app_settings LIMIT 0")
+        .is_ok();
+    if !has_quick_paste {
+        let _ = conn.execute("ALTER TABLE app_settings ADD COLUMN quick_paste INTEGER NOT NULL DEFAULT 0", []);
+    }
+
     conn.execute(
-        "INSERT OR IGNORE INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position)
-         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center')",
+        "INSERT OR IGNORE INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste)
+         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center', 0)",
         [],
     )?;
 
@@ -129,7 +137,7 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
 
 pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
     conn.query_row(
-        "SELECT retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position FROM app_settings WHERE id = 1",
+        "SELECT retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste FROM app_settings WHERE id = 1",
         [],
         |row| {
             Ok(AppSettings {
@@ -140,6 +148,7 @@ pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
                 accessibility_prompted: row.get::<_, i64>(4)? == 1,
                 close_behavior: row.get(5)?,
                 panel_position: row.get(6)?,
+                quick_paste: row.get::<_, i64>(7)? == 1,
             })
         },
     ).context("failed to load app settings")
@@ -147,8 +156,8 @@ pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
 
 pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Result<AppSettings> {
     conn.execute(
-        "UPDATE app_settings SET retention_limit = ?1, launch_on_startup = ?2, pause_capture = ?3, locale = ?4, accessibility_prompted = ?5, close_behavior = ?6, panel_position = ?7 WHERE id = 1",
-        params![settings.retention_limit, settings.launch_on_startup as i64, settings.pause_capture as i64, settings.locale, settings.accessibility_prompted as i64, settings.close_behavior, settings.panel_position],
+        "UPDATE app_settings SET retention_limit = ?1, launch_on_startup = ?2, pause_capture = ?3, locale = ?4, accessibility_prompted = ?5, close_behavior = ?6, panel_position = ?7, quick_paste = ?8 WHERE id = 1",
+        params![settings.retention_limit, settings.launch_on_startup as i64, settings.pause_capture as i64, settings.locale, settings.accessibility_prompted as i64, settings.close_behavior, settings.panel_position, settings.quick_paste as i64],
     )?;
     load_settings(conn)
 }

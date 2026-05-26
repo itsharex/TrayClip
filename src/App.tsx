@@ -21,6 +21,7 @@ const fallback: BootstrapPayload = {
     accessibility_prompted: false,
     close_behavior: "hide",
     panel_position: "center",
+    quick_paste: false,
   },
   hotkeys: [],
   permissions: {
@@ -63,6 +64,9 @@ function AboutPanel({ installerType }: { installerType: string }) {
 
   return (
       <section className="tab-panel about-panel">
+        <div className="about-logo">
+          <img src="/128x128.png" alt="TrayClip" width={80} height={80} />
+        </div>
         <h2>{t.aboutTitle}</h2>
         <p>{t.aboutDesc}</p>
         <ul>
@@ -70,6 +74,7 @@ function AboutPanel({ installerType }: { installerType: string }) {
           <li>{t.aboutStorage}</li>
           <li>{t.aboutPlatform}</li>
           <li>{t.aboutLicense}</li>
+          <li>Github：<a href="https://github.com/Heyiki/TrayClip" target="_blank" rel="noopener noreferrer">https://github.com/Heyiki/TrayClip</a></li>
         </ul>
         <div style={{ marginTop: 12 }}>
           <button onClick={() => void handleCheck()} disabled={checking}>
@@ -265,8 +270,10 @@ export default function App() {
   }, [search, selectedGroupId, state.clips.items]);
 
   const saveSettings = useCallback(async (next: AppSettings) => {
+    setState((current) => ({ ...current, settings: next }));
     const updated = await updateSettings(next);
     setState((current) => ({ ...current, settings: updated }));
+    void emit("settings://changed", updated);
   }, []);
 
   const handleWindowClose = useCallback(async () => {
@@ -427,6 +434,7 @@ export default function App() {
               </button>
               {settingsMenuOpen ? (
                   <div className="window-bar__settings-menu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => { setActiveTab("clips"); setSettingsMenuOpen(false); }}>{t.home}</button>
                     <button type="button" role="menuitem" onClick={() => { setActiveTab("settings"); setSettingsMenuOpen(false); }}>{t.settings}</button>
                     <button type="button" role="menuitem" onClick={() => { setActiveTab("help"); setSettingsMenuOpen(false); }}>{t.help}</button>
                     <button type="button" role="menuitem" onClick={() => { setActiveTab("about"); setSettingsMenuOpen(false); }}>{t.about}</button>

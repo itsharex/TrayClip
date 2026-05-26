@@ -120,6 +120,8 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
         permissions: RwLock::new(models::PermissionState::default()),
         last_clip_signature: Mutex::new(None),
         is_dragging: std::sync::Arc::new(Mutex::new(false)),
+        #[cfg(target_os = "windows")]
+        previous_hwnd: Mutex::new(0),
         #[cfg(target_os = "linux")]
         clipboard: Mutex::new(arboard::Clipboard::new().context("failed to initialize clipboard")?),
     })
@@ -210,6 +212,13 @@ pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()
                                 let _ = window.hide();
                             } else {
                                 let app_state = h.state::<AppState>();
+                                #[cfg(target_os = "windows")]
+                                {
+                                    let hwnd = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+                                    if !hwnd.is_null() {
+                                        *app_state.previous_hwnd.lock() = hwnd as usize;
+                                    }
+                                }
                                 let panel_position = app_state.settings.read().panel_position.clone();
                                 commands::position_quick_panel(&window, &panel_position);
                                 let _ = window.show();
@@ -331,6 +340,7 @@ fn main() {
             commands::toggle_quick_panel,
             commands::hide_quick_panel,
             commands::set_dragging,
+            commands::simulate_paste,
             commands::check_update,
             commands::get_installer_type,
             commands::reload_global_shortcuts,

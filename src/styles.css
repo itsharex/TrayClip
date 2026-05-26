@@ -561,6 +561,10 @@ html.is-mac .app-shell {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+.clip-card__body {
+  cursor: pointer;
+}
+
 .clip-card__header {
   display: flex;
   flex-wrap: wrap;
@@ -959,6 +963,16 @@ html.is-mac .app-shell {
   overflow-y: auto;
 }
 
+.about-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.about-logo img {
+  border-radius: 16px;
+}
+
 .about-panel h2 {
   margin: 0 0 6px;
   font-size: 14px;
@@ -999,6 +1013,16 @@ html.is-mac .app-shell {
 }
 
 .update-link:hover {
+  text-decoration: underline;
+}
+
+.about-panel li a {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.about-panel li a:hover {
   text-decoration: underline;
 }
 

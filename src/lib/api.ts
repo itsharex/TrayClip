@@ -25,8 +25,9 @@ export const requestAccessibilityPermission = () => invoke<boolean>("request_acc
 export const hideWindow = () => invoke("hide_window");
 export const quitApp = () => invoke("quit_app");
 export const toggleQuickPanel = () => invoke("toggle_quick_panel");
-export const hideQuickPanel = () => invoke("hide_quick_panel");
+export const hideQuickPanel = (pasteAfter = false) => invoke("hide_quick_panel", { pasteAfter });
 export const setDragging = (dragging: boolean) => invoke("set_dragging", { dragging });
+export const simulatePaste = () => invoke("simulate_paste");
 
 export interface UpdateInfo {
   has_update: boolean;

@@ -8,6 +8,15 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
 
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VK_CONTROL,
+};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+
 fn runtime_error(error: anyhow::Error) -> String {
     error.to_string()
 }
@@ -343,6 +352,13 @@ pub fn toggle_quick_panel(app: AppHandle, state: State<'_, AppState>) -> Result<
         if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
             let _ = window.hide();
         } else {
+            #[cfg(target_os = "windows")]
+            {
+                let hwnd = unsafe { GetForegroundWindow() };
+                if !hwnd.is_null() {
+                    *state.previous_hwnd.lock() = hwnd as usize;
+                }
+            }
             let panel_position = state.settings.read().panel_position.clone();
             position_quick_panel(&window, &panel_position);
             let _ = window.show();
@@ -354,9 +370,23 @@ pub fn toggle_quick_panel(app: AppHandle, state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
-pub fn hide_quick_panel(app: AppHandle) -> Result<(), String> {
+pub fn hide_quick_panel(app: AppHandle, state: State<'_, AppState>, paste_after: bool) -> Result<(), String> {
     if let Some(window) = app.webview_windows().get("quick-panel").cloned() {
         let _ = window.hide();
+    }
+    if paste_after {
+        #[cfg(target_os = "windows")]
+        {
+            let hwnd = *state.previous_hwnd.lock();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                if hwnd != 0 {
+                    unsafe { SetForegroundWindow(hwnd as *mut _); }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                let _ = simulate_paste();
+            });
+        }
     }
     Ok(())
 }
@@ -364,6 +394,33 @@ pub fn hide_quick_panel(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn set_dragging(state: State<'_, AppState>, dragging: bool) -> Result<(), String> {
     *state.is_dragging.lock() = dragging;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn make_key_input(vk: u16, flags: u32) -> INPUT {
+    let mut input: INPUT = unsafe { std::mem::zeroed() };
+    input.r#type = INPUT_KEYBOARD;
+    input.Anonymous.ki.wVk = vk;
+    input.Anonymous.ki.dwFlags = flags;
+    input
+}
+
+#[tauri::command]
+pub fn simulate_paste() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let inputs = [
+            make_key_input(VK_CONTROL, 0),
+            make_key_input(0x56, 0), // 'V'
+            make_key_input(0x56, KEYEVENTF_KEYUP),
+            make_key_input(VK_CONTROL, KEYEVENTF_KEYUP),
+        ];
+        let sent = unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32) };
+        if sent != inputs.len() as u32 {
+            return Err("SendInput failed".into());
+        }
+    }
     Ok(())
 }
 

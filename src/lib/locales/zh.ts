@@ -2,6 +2,7 @@ export const zh = {
   brand: "TrayClip",
 
   // 通用
+  home: "首页",
   confirm: "确认",
   cancel: "取消",
   delete: "删除",
@@ -120,6 +121,7 @@ export const zh = {
   dataManagement: "数据管理",
   retentionLimit: "历史记录保留条数",
   pauseCapture: "暂停采集剪贴板",
+  quickPaste: "快捷粘贴",
   backup: "备份",
   restore: "还原",
   backupSuccess: "备份成功",

@@ -44,6 +44,7 @@ pub struct AppSettings {
     pub accessibility_prompted: bool,
     pub close_behavior: String,
     pub panel_position: String,
+    pub quick_paste: bool,
 }
 
 impl Default for AppSettings {
@@ -56,6 +57,7 @@ impl Default for AppSettings {
             accessibility_prompted: false,
             close_behavior: "hide".into(),
             panel_position: "center".into(),
+            quick_paste: false,
         }
     }
 }

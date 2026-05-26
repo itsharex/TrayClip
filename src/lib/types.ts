@@ -32,6 +32,7 @@ export interface AppSettings {
   accessibility_prompted: boolean;
   close_behavior: "hide" | "exit" | "ask";
   panel_position: "center" | "follow_mouse";
+  quick_paste: boolean;
 }
 
 export type HotkeyActionKey = "open_main_window" | "open_quick_panel";

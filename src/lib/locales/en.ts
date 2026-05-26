@@ -3,6 +3,7 @@ import type { zh } from "./zh";
 export const en: typeof zh = {
   brand: "TrayClip",
 
+  home: "Home",
   confirm: "Confirm",
   cancel: "Cancel",
   delete: "Delete",
@@ -112,6 +113,7 @@ export const en: typeof zh = {
   dataManagement: "Data Management",
   retentionLimit: "Retention limit",
   pauseCapture: "Pause clipboard capture",
+  quickPaste: "Quick paste",
   backup: "Backup",
   restore: "Restore",
   backupSuccess: "Backup successful",
