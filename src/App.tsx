@@ -65,7 +65,7 @@ function AboutPanel({ installerType }: { installerType: string }) {
   return (
       <section className="tab-panel about-panel">
         <div className="about-logo">
-          <img src="/128x128.png" alt="TrayClip" width={80} height={80} />
+          <img src="/logo.png" alt="TrayClip" width={80} height={80} />
         </div>
         <h2>{t.aboutTitle}</h2>
         <p>{t.aboutDesc}</p>
