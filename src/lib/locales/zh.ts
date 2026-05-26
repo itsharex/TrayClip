@@ -41,6 +41,7 @@ export const zh = {
   // ClipCard
   contentTruncated: "内容已截断",
   moreFiles: (n: number) => `及其他 ${n} 个文件`,
+  loading: "加载中...",
   emptyRecords: "暂无记录",
 
   // 分组选择

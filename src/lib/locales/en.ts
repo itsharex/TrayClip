@@ -38,6 +38,7 @@ export const en: typeof zh = {
 
   contentTruncated: "Content truncated",
   moreFiles: (n: number) => `and ${n} more files`,
+  loading: "Loading...",
   emptyRecords: "No records",
 
   searchGroup: "Search groups",
