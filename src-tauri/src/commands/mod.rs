@@ -370,14 +370,14 @@ pub fn toggle_quick_panel(app: AppHandle, state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
-pub fn hide_quick_panel(app: AppHandle, state: State<'_, AppState>, paste_after: bool) -> Result<(), String> {
+pub fn hide_quick_panel(app: AppHandle, _state: State<'_, AppState>, paste_after: bool) -> Result<(), String> {
     if let Some(window) = app.webview_windows().get("quick-panel").cloned() {
         let _ = window.hide();
     }
     if paste_after {
         #[cfg(target_os = "windows")]
         {
-            let hwnd = *state.previous_hwnd.lock();
+            let hwnd = *_state.previous_hwnd.lock();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(300));
                 if hwnd != 0 {
@@ -516,9 +516,9 @@ fn detect_windows_install_type() -> &'static str {
     "exe"
 }
 
-fn find_asset_url(assets: &[serde_json::Value], installer_type: &str) -> Option<String> {
+fn find_asset_url(assets: &[serde_json::Value], _installer_type: &str) -> Option<String> {
     #[cfg(target_os = "windows")]
-    let suffixes: &[&str] = if installer_type == "msi" {
+    let suffixes: &[&str] = if _installer_type == "msi" {
         &[".msi", ".exe"]
     } else {
         &[".exe", ".msi"]

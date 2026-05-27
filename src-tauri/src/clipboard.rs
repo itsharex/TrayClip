@@ -1,10 +1,12 @@
 use std::{
     borrow::Cow,
-    ffi::OsStr,
     fs::File,
     io::BufWriter,
     path::{Path, PathBuf},
 };
+
+#[cfg(target_os = "windows")]
+use std::ffi::OsStr;
 
 use anyhow::Context;
 use arboard::{Clipboard, ImageData};
@@ -31,6 +33,7 @@ use windows_sys::Win32::{
     UI::Shell::{DragQueryFileW, HDROP},
 };
 
+#[cfg(target_os = "windows")]
 const CF_HDROP: u32 = 15;
 
 pub fn read_clipboard(paths: &AppPaths) -> anyhow::Result<Option<(String, NewClipRecord)>> {
@@ -248,6 +251,7 @@ fn summarize_text(text: &str) -> String {
     summary
 }
 
+#[cfg(target_os = "windows")]
 fn summarize_file_paths(file_paths: &[String]) -> String {
     match file_paths.len() {
         0 => "文件".into(),
