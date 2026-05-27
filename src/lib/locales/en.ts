@@ -103,7 +103,7 @@ export const en: typeof zh = {
   aboutVersion: (v: string) => `Version: ${v}`,
   aboutStorage: "Storage: Local only",
   aboutPlatform: "Platforms: Windows / macOS / Linux",
-  aboutLicense: "License: CC BY-NC 4.0 (Non-commercial)",
+  aboutLicense: "License: MIT",
   checking: "Checking...",
   checkUpdate: "Check for updates",
   newVersion: (v: string) => `New version available: v${v}`,

@@ -102,7 +102,6 @@ function AboutPanel({ installerType }: { installerType: string }) {
 export default function App() {
   const { t, locale, setLocale } = useTranslation();
   const [state, setState] = useState<BootstrapPayload>(fallback);
-  const [loading, setLoading] = useState(true);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => { document.querySelector(".history-list")?.scrollTo(0, 0); }, [search]);
@@ -121,8 +120,12 @@ export default function App() {
   const noticeTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Pre-fetch installer type at app level so AboutPanel is instant
-  useEffect(() => { getInstallerType().then(setInstallerType).catch(() => {}); }, []);
+  // Lazy-load installer type only when About tab is opened
+  useEffect(() => {
+    if (activeTab === "about" && installerType === "exe") {
+      getInstallerType().then(setInstallerType).catch(() => {});
+    }
+  }, [activeTab, installerType]);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(state.settings);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -148,20 +151,17 @@ export default function App() {
     });
   }, []);
 
-  const loadSeq = useRef(0);
-  const load = useCallback(async (showLoading = false) => {
-    const seq = ++loadSeq.current;
-    if (showLoading) setLoading(true);
+  const load = useCallback(async () => {
     try {
       const payload = await getBootstrap();
-      if (seq === loadSeq.current) setState(payload);
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
+      setState(payload);
+    } catch {
+      // ignore
     }
   }, []);
 
   useEffect(() => {
-    void load(true);
+    void load();
   }, [load]);
 
   useEffect(() => {
@@ -461,14 +461,6 @@ export default function App() {
         </header>
 
         <section className="workspace">
-          {loading && state.clips.items.length === 0 ? (
-              <div className="loading-overlay">
-                <svg className="loading-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                </svg>
-                <span className="loading-text">{t.loading}</span>
-              </div>
-          ) : null}
           {activeTab === "clips" ? (
               <section className="tab-panel">
                 <div className="toolbar">

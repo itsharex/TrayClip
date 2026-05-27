@@ -253,18 +253,6 @@ fn main() {
 
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
-            // Sync autostart with saved setting
-            {
-                use tauri_plugin_autostart::ManagerExt;
-                let launch = app.autolaunch();
-                let want_enabled = state.settings.read().launch_on_startup;
-                let currently_enabled = launch.is_enabled().unwrap_or(false);
-                if want_enabled && !currently_enabled {
-                    let _ = launch.enable().map_err(|e| eprintln!("[autostart] enable failed: {}", e));
-                } else if !want_enabled && currently_enabled {
-                    let _ = launch.disable().map_err(|e| eprintln!("[autostart] disable failed: {}", e));
-                }
-            }
             app.manage(state);
             {
                 let state = app.state::<AppState>();
@@ -293,6 +281,9 @@ fn main() {
                         let _ = w.emit("close-requested", ());
                     }
                 });
+                // Ensure main window is focused on startup so frontend renders data
+                let _ = window.show();
+                let _ = window.set_focus();
             }
 
             {
@@ -313,6 +304,23 @@ fn main() {
             let handle = app.handle().clone();
             if let Err(e) = register_global_shortcuts(&handle) {
                 eprintln!("failed to register global shortcuts: {}", e);
+            }
+
+            // Sync autostart in background to avoid blocking startup
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    use tauri_plugin_autostart::ManagerExt;
+                    let state = handle.state::<AppState>();
+                    let launch = handle.autolaunch();
+                    let want_enabled = state.settings.read().launch_on_startup;
+                    let currently_enabled = launch.is_enabled().unwrap_or(false);
+                    if want_enabled && !currently_enabled {
+                        let _ = launch.enable().map_err(|e| eprintln!("[autostart] enable failed: {}", e));
+                    } else if !want_enabled && currently_enabled {
+                        let _ = launch.disable().map_err(|e| eprintln!("[autostart] disable failed: {}", e));
+                    }
+                });
             }
 
             Ok(())

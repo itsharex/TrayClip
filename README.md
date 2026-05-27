@@ -1,8 +1,30 @@
-# TrayClip
+<div align="center">
+    <img src="public/logo.png" alt="TrayClip" width="128" />
+</div>
 
-[English](README_EN.md)
+<h1 align="center">TrayClip</h1>
 
-TrayClip 是一款纯本地剪贴板工具，专注于复制、粘贴、历史记录、分组、置顶和快捷键管理，不依赖任何线上接口。
+<p align="center">
+  TrayClip 是一款纯本地剪贴板工具，专注于复制、粘贴、历史记录、分组、置顶和快捷键管理，不依赖任何线上接口。
+</p>
+
+---
+
+<div align="center">
+
+[English](README_EN.md) | 简体中文
+
+</div>
+
+<div align="center">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-61dafb.svg?logo=react" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.6-3178c6.svg?logo=typescript" />
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.75-9978c6.svg?logo=rust" />
+  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2.0-3018c6.svg?logo=tauri" />
+</div>
+
+---
 
 ## 特性
 
@@ -51,4 +73,4 @@ npm run tauri:build
 
 ## 开源协议
 
-[CC BY-NC 4.0](LICENSE) — 署名-非商业性使用
+[MIT](LICENSE)

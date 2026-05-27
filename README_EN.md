@@ -1,8 +1,30 @@
-# TrayClip
+<div align="center">
+    <img src="public/logo.png" alt="TrayClip" width="128" />
+</div>
 
-[中文](README.md)
+<h1 align="center">TrayClip</h1>
 
-TrayClip is a local-only clipboard manager focused on copy, paste, history, groups, pinning, and hotkey management. No online services required.
+<p align="center">
+  TrayClip is a local-only clipboard manager focused on copy, paste, history, groups, pinning, and hotkey management. No online services required.
+</p>
+
+---
+
+<div align="center">
+
+English | [简体中文](README.md)
+
+</div>
+
+<div align="center">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-61dafb.svg?logo=react" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.6-3178c6.svg?logo=typescript" />
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.75-9978c6.svg?logo=rust" />
+  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2.0-3018c6.svg?logo=tauri" />
+</div>
+
+---
 
 ## Features
 
@@ -51,4 +73,4 @@ npm run tauri:build
 
 ## License
 
-[CC BY-NC 4.0](LICENSE) — Attribution-NonCommercial
+[MIT](LICENSE)

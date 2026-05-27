@@ -97,9 +97,9 @@ fn read_clipboard_with_clipboard(paths: &AppPaths, clipboard: &mut Clipboard) ->
         }
 
         let (content_type, plain_text, file_paths) = classify_text(&text);
-        let is_truncated = plain_text.as_ref().is_some_and(|value| value.len() > 100 * 1024);
+        let is_truncated = plain_text.as_ref().is_some_and(|value| value.len() > 1024 * 1024);
         let normalized_text = plain_text.clone().unwrap_or(text);
-        let truncated_text = plain_text.map(|value| truncate_to_100kb(&value));
+        let truncated_text = plain_text.map(|value| truncate_to_1mb(&value));
         let summary = summarize_text(truncated_text.as_deref().unwrap_or(&normalized_text));
         let content_hash = db::compute_hash(&content_type, &truncated_text, &None, &file_paths, &summary);
         return Ok(Some((
@@ -155,7 +155,7 @@ fn peek_signature_with_clipboard(_paths: &AppPaths, clipboard: &mut Clipboard) -
         }
         let (content_type, plain_text, file_paths) = classify_text(&text);
         let normalized_text = plain_text.clone().unwrap_or(text);
-        let truncated_text = plain_text.map(|value| truncate_to_100kb(&value));
+        let truncated_text = plain_text.map(|value| truncate_to_1mb(&value));
         let summary = summarize_text(truncated_text.as_deref().unwrap_or(&normalized_text));
         let content_hash = db::compute_hash(&content_type, &truncated_text, &None, &file_paths, &summary);
         return Ok(Some(content_hash));
@@ -225,12 +225,12 @@ fn classify_text(text: &str) -> (ClipContentType, Option<String>, Vec<String>) {
     (ClipContentType::PlainText, Some(text.to_string()), Vec::new())
 }
 
-fn truncate_to_100kb(text: &str) -> String {
+fn truncate_to_1mb(text: &str) -> String {
     let mut total = 0usize;
     let mut result = String::new();
     for ch in text.chars() {
         let len = ch.len_utf8();
-        if total + len > 100 * 1024 {
+        if total + len > 1024 * 1024 {
             break;
         }
         total += len;

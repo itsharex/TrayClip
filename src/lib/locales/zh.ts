@@ -110,7 +110,7 @@ export const zh = {
   aboutVersion: (v: string) => `当前版本：${v}`,
   aboutStorage: "数据存储：本机本地",
   aboutPlatform: "支持平台：Windows / macOS / Linux",
-  aboutLicense: "开源协议：CC BY-NC 4.0（非商业使用）",
+  aboutLicense: "开源协议：MIT",
   checking: "检查中...",
   checkUpdate: "检查更新",
   newVersion: (v: string) => `发现新版本 v${v}`,
