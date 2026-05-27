@@ -16,10 +16,13 @@ jobs:
         include:
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
+            updater_target: windows-x86_64
           - platform: macos-latest
             target: aarch64-apple-darwin
+            updater_target: darwin-aarch64
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            updater_target: linux-x86_64
 
     runs-on: ${{ matrix.platform }}
 
@@ -58,7 +61,42 @@ jobs:
           releaseBody: "See the assets below to download and install."
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: false
           args: --target ${{ matrix.target }}
+
+      - name: Sign and upload updater info
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          # Fallback if target-specific dir doesn't exist
+          [ -d "$BUNDLE_DIR" ] || BUNDLE_DIR="src-tauri/target/release/bundle"
+
+          # Find the main installer to sign (NSIS .exe on Windows, .app.tar.gz on macOS, .AppImage.tar.gz on Linux)
+          INSTALLER=$(find "$BUNDLE_DIR" \( -name "*x64-setup.exe" -o -name "*.app.tar.gz" -o -name "*.AppImage.tar.gz" \) | head -1)
+
+          if [ -z "$INSTALLER" ]; then
+            echo "ERROR: No installer found in $BUNDLE_DIR"
+            find "$BUNDLE_DIR" -type f | head -20
+            exit 1
+          fi
+
+          echo "Signing: $INSTALLER"
+          npx tauri signer sign "$INSTALLER"
+
+          SIG_FILE="${INSTALLER}.sig"
+          if [ ! -f "$SIG_FILE" ]; then
+            echo "ERROR: .sig file not generated"
+            exit 1
+          fi
+
+          echo "updater_target=${{ matrix.updater_target }}" >> "$GITHUB_OUTPUT" 2>/dev/null || true
+          echo "SIG_CONTENT=$(cat "$SIG_FILE")" >> "$GITHUB_ENV"
+
+          # Upload .sig as release asset too
+          TAG="${{ github.ref_name }}"
+          gh release upload "$TAG" "$SIG_FILE" --clobber || true
 
       - name: Remove unwanted Linux bundle files
         if: matrix.platform == 'ubuntu-22.04'
@@ -69,7 +107,7 @@ jobs:
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id') || exit 0
           gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
             case "$name" in
-              *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync|latest.json)
+              *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync|*.sig|latest.json)
                 echo "KEEP: $name"
                 ;;
               *)
@@ -79,3 +117,59 @@ jobs:
             esac
           done
         shell: bash
+
+  updater-json:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate latest.json from release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          REPO="${{ github.repository }}"
+          RELEASE_ID=$(gh api repos/$REPO/releases/tags/$TAG --jq '.id')
+          ASSETS=$(gh api repos/$REPO/releases/$RELEASE_ID/assets --paginate)
+
+          # Build platforms from release assets + .sig files
+          PLATFORMS="{}"
+
+          # Windows: x64-setup.exe
+          WIN_URL=$(echo "$ASSETS" | jq -r '.[] | select(.name | endswith("x64-setup.exe")) | .browser_download_url')
+          WIN_SIG_URL=$(echo "$ASSETS" | jq -r '.[] | select(.name | endswith("x64-setup.exe.sig")) | .browser_download_url')
+          if [ -n "$WIN_URL" ] && [ "$WIN_URL" != "null" ] && [ -n "$WIN_SIG_URL" ] && [ "$WIN_SIG_URL" != "null" ]; then
+            WIN_SIG=$(curl -sL "$WIN_SIG_URL")
+            PLATFORMS=$(echo "$PLATFORMS" | jq --arg u "$WIN_URL" --arg s "$WIN_SIG" '. + {"windows-x86_64": {url: $u, signature: $s}}')
+          fi
+
+          # macOS: aarch64.app.tar.gz
+          MAC_URL=$(echo "$ASSETS" | jq -r '.[] | select(.name | endswith("aarch64.app.tar.gz")) | .browser_download_url')
+          MAC_SIG_URL=$(echo "$ASSETS" | jq -r '.[] | select(.name | endswith("aarch64.app.tar.gz.sig")) | .browser_download_url')
+          if [ -n "$MAC_URL" ] && [ "$MAC_URL" != "null" ] && [ -n "$MAC_SIG_URL" ] && [ "$MAC_SIG_URL" != "null" ]; then
+            MAC_SIG=$(curl -sL "$MAC_SIG_URL")
+            PLATFORMS=$(echo "$PLATFORMS" | jq --arg u "$MAC_URL" --arg s "$MAC_SIG" '. + {"darwin-aarch64": {url: $u, signature: $s}}')
+          fi
+
+          # Linux: amd64.AppImage.tar.gz
+          LIN_URL=$(echo "$ASSETS" | jq -r '.[] | select(.name | endswith("amd64.AppImage.tar.gz")) | .browser_download_url')
+          LIN_SIG_URL=$(echo "$ASSETS" | jq -r '.[] | select(.name | endswith("amd64.AppImage.tar.gz.sig")) | .browser_download_url')
+          if [ -n "$LIN_URL" ] && [ "$LIN_URL" != "null" ] && [ -n "$LIN_SIG_URL" ] && [ "$LIN_SIG_URL" != "null" ]; then
+            LIN_SIG=$(curl -sL "$LIN_SIG_URL")
+            PLATFORMS=$(echo "$PLATFORMS" | jq --arg u "$LIN_URL" --arg s "$LIN_SIG" '. + {"linux-x86_64": {url: $u, signature: $s}}')
+          fi
+
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          jq -n \
+            --arg ver "$VERSION" \
+            --arg notes "TrayClip $TAG" \
+            --arg date "$PUB_DATE" \
+            --argjson platforms "$PLATFORMS" \
+            '{version: $ver, notes: $notes, pub_date: $date, platforms: $platforms}' \
+            > latest.json
+
+          echo "=== latest.json ==="
+          cat latest.json
+
+          gh release upload "$TAG" latest.json --clobber
