@@ -58,7 +58,6 @@ jobs:
           releaseBody: "See the assets below to download and install."
           releaseDraft: true
           prerelease: false
-          updaterJsonPreferNsis: true
           args: --target ${{ matrix.target }}
 
       - name: Remove unwanted Linux bundle files
@@ -70,7 +69,7 @@ jobs:
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id') || exit 0
           gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
             case "$name" in
-              *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
+              *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync|latest.json)
                 echo "KEEP: $name"
                 ;;
               *)
