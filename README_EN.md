@@ -48,7 +48,7 @@ Hotkeys can be customized in Settings.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - Rust 1.75+
 - npm 10+
 

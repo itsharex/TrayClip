@@ -48,7 +48,7 @@
 
 ## 开发环境
 
-- Node.js 20+
+- Node.js 22+
 - Rust 1.75+
 - npm 10+
 
