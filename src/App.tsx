@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, getInstallerType, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { backupData, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
+import { useUpdater } from "./hooks/useUpdater";
 import { HistoryList } from "./components/HistoryList";
 import { SettingsPanel } from "./components/SettingsPanel";
 
@@ -40,27 +40,12 @@ interface ConfirmState {
   onCancel?: () => Promise<void> | void;
 }
 
-function AboutPanel({ installerType }: { installerType: string }) {
+function AboutPanel() {
   const { t } = useTranslation();
   const version = useAppVersion();
-  const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{ has_update: boolean; latest_version: string; download_url: string; body: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const updater = useUpdater(true);
 
-  const handleCheck = async () => {
-    setChecking(true);
-    setResult(null);
-    setError(null);
-    try {
-      const runtimeVersion = await getVersion();
-      const info = await checkUpdate(runtimeVersion, installerType);
-      setResult(info);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setChecking(false);
-    }
-  };
+  const progressPct = updater.totalBytes > 0 ? Math.round((updater.downloadedBytes / updater.totalBytes) * 100) : 0;
 
   return (
       <section className="tab-panel about-panel">
@@ -77,24 +62,37 @@ function AboutPanel({ installerType }: { installerType: string }) {
           <li>Github：<a href="https://github.com/Heyiki/TrayClip" target="_blank" rel="noopener noreferrer">https://github.com/Heyiki/TrayClip</a></li>
         </ul>
         <div style={{ marginTop: 12 }}>
-          <button onClick={() => void handleCheck()} disabled={checking}>
-            {checking ? t.checking : t.checkUpdate}
-          </button>
+          {updater.status === "idle" || updater.status === "not-available" ? (
+              <button onClick={() => void updater.doCheck()}>
+                {updater.status === "not-available" ? t.upToDate : t.checkUpdate}
+              </button>
+          ) : updater.status === "checking" ? (
+              <button disabled>{t.checking}</button>
+          ) : updater.status === "available" ? (
+              <div className="update-result">
+                <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(updater.version)}</p>
+                {updater.body ? <pre className="update-changelog">{updater.body}</pre> : null}
+                <button onClick={() => void updater.doDownload()}>{t.downloadUpdate}</button>
+              </div>
+          ) : updater.status === "downloading" ? (
+              <div className="update-result">
+                <p style={{ margin: "8px 0 4px" }}>{t.downloading(progressPct)}</p>
+                <div className="update-progress">
+                  <div className="update-progress__bar" style={{ width: `${progressPct}%` }} />
+                </div>
+              </div>
+          ) : updater.status === "downloaded" ? (
+              <div className="update-result">
+                <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.updateReady}</p>
+                <button className="primary" onClick={() => void updater.doRelaunch()}>{t.restartNow}</button>
+              </div>
+          ) : updater.status === "error" ? (
+              <div className="update-result">
+                <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(updater.error ?? "")}</p>
+                <button onClick={() => void updater.doCheck()}>{t.retryUpdate}</button>
+              </div>
+          ) : null}
         </div>
-        {result ? (
-            <div className="update-result">
-              {result.has_update ? (
-                  <>
-                    <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(result.latest_version)}</p>
-                    {result.body ? <pre className="update-changelog">{result.body}</pre> : null}
-                    <a href={result.download_url} target="_blank" rel="noopener noreferrer" className="update-link">{t.goToDownload}</a>
-                  </>
-              ) : (
-                  <p style={{ color: "var(--text-tertiary)", margin: "8px 0 0" }}>{t.upToDate}</p>
-              )}
-            </div>
-        ) : null}
-        {error ? <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(error)}</p> : null}
       </section>
   );
 }
@@ -116,16 +114,8 @@ export default function App() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [installerType, setInstallerType] = useState("exe");
   const noticeTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Lazy-load installer type only when About tab is opened
-  useEffect(() => {
-    if (activeTab === "about" && installerType === "exe") {
-      getInstallerType().then(setInstallerType).catch(() => {});
-    }
-  }, [activeTab, installerType]);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(state.settings);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -622,7 +612,7 @@ export default function App() {
           ) : null}
 
           {activeTab === "about" ? (
-              <AboutPanel installerType={installerType} />
+              <AboutPanel />
           ) : null}
         </section>
 

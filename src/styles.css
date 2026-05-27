@@ -1043,6 +1043,21 @@ html.is-mac .app-shell {
   text-decoration: underline;
 }
 
+.update-progress {
+  height: 6px;
+  background: var(--bg-muted);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.update-progress__bar {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
 .about-panel li a {
   color: inherit;
   text-decoration: none;

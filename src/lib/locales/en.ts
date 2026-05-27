@@ -107,7 +107,11 @@ export const en: typeof zh = {
   checking: "Checking...",
   checkUpdate: "Check for updates",
   newVersion: (v: string) => `New version available: v${v}`,
-  goToDownload: "Go to download",
+  downloadUpdate: "Download update",
+  downloading: (pct: number) => `Downloading ${pct}%`,
+  updateReady: "Update ready, restart to complete",
+  restartNow: "Restart now",
+  retryUpdate: "Retry",
   upToDate: "Already up to date",
   checkFailed: (err: string) => `Check failed: ${err}`,
 

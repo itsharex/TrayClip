@@ -114,7 +114,11 @@ export const zh = {
   checking: "检查中...",
   checkUpdate: "检查更新",
   newVersion: (v: string) => `发现新版本 v${v}`,
-  goToDownload: "前往下载",
+  downloadUpdate: "下载更新",
+  downloading: (pct: number) => `下载中 ${pct}%`,
+  updateReady: "更新已就绪，重启即可完成升级",
+  restartNow: "立即重启",
+  retryUpdate: "重试",
   upToDate: "已是最新版本",
   checkFailed: (err: string) => `检查失败：${err}`,
 
