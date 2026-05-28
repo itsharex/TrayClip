@@ -45,6 +45,7 @@ pub struct AppSettings {
     pub close_behavior: String,
     pub panel_position: String,
     pub quick_paste: bool,
+    pub url_toast: bool,
 }
 
 impl Default for AppSettings {
@@ -58,6 +59,7 @@ impl Default for AppSettings {
             close_behavior: "hide".into(),
             panel_position: "center".into(),
             quick_paste: false,
+            url_toast: false,
         }
     }
 }

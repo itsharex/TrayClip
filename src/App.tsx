@@ -3,7 +3,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, getInstallerType, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
@@ -22,6 +22,7 @@ const fallback: BootstrapPayload = {
     close_behavior: "hide",
     panel_position: "center",
     quick_paste: false,
+    url_toast: false,
   },
   hotkeys: [],
   permissions: {
@@ -40,7 +41,7 @@ interface ConfirmState {
   onCancel?: () => Promise<void> | void;
 }
 
-function AboutPanel({ installerType }: { installerType: string }) {
+function AboutPanel() {
   const { t } = useTranslation();
   const version = useAppVersion();
   const [checking, setChecking] = useState(false);
@@ -53,7 +54,7 @@ function AboutPanel({ installerType }: { installerType: string }) {
     setError(null);
     try {
       const runtimeVersion = await getVersion();
-      const info = await checkUpdate(runtimeVersion, installerType);
+      const info = await checkUpdate(runtimeVersion, "exe");
       setResult(info);
     } catch (e) {
       setError(String(e));
@@ -116,16 +117,9 @@ export default function App() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [installerType, setInstallerType] = useState("exe");
   const noticeTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Lazy-load installer type only when About tab is opened
-  useEffect(() => {
-    if (activeTab === "about" && installerType === "exe") {
-      getInstallerType().then(setInstallerType).catch(() => {});
-    }
-  }, [activeTab, installerType]);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(state.settings);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -622,7 +616,7 @@ export default function App() {
           ) : null}
 
           {activeTab === "about" ? (
-              <AboutPanel installerType={installerType} />
+              <AboutPanel />
           ) : null}
         </section>
 

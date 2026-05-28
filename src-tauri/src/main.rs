@@ -301,6 +301,16 @@ fn main() {
                 }
             }
 
+            // Auto-hide url-toast window on focus loss
+            if let Some(ut) = app.get_webview_window("url-toast") {
+                let w = ut.clone();
+                ut.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(false) = event {
+                        let _ = w.hide();
+                    }
+                });
+            }
+
             let handle = app.handle().clone();
             if let Err(e) = register_global_shortcuts(&handle) {
                 eprintln!("failed to register global shortcuts: {}", e);
@@ -353,7 +363,8 @@ fn main() {
             commands::get_installer_type,
             commands::reload_global_shortcuts,
             commands::backup_data,
-            commands::restore_backup
+            commands::restore_backup,
+            commands::show_url_toast
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");

@@ -13,9 +13,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VK_CONTROL,
 };
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
 
 fn runtime_error(error: anyhow::Error) -> String {
     error.to_string()
@@ -424,6 +422,27 @@ pub fn simulate_paste() -> Result<(), String> {
     Ok(())
 }
 
+/// Generic helper that works with any runtime — callable from monitor or commands.
+pub fn show_url_toast_window<R: tauri::Runtime>(app: &AppHandle<R>, url: &str) {
+    if let Some(window) = app.webview_windows().get("url-toast").cloned() {
+        let _ = window.emit("url-toast://show", url);
+        // Position at mouse cursor
+        if let Ok(pos) = window.cursor_position() {
+            let x = pos.x as i32 + 16;
+            let y = pos.y as i32 - 50;
+            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+        }
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+#[tauri::command]
+pub fn show_url_toast(app: AppHandle, url: String) -> Result<(), String> {
+    show_url_toast_window(&app, &url);
+    Ok(())
+}
+
 const GITHUB_REPO: &str = "Heyiki/TrayClip";
 
 #[derive(serde::Serialize)]
@@ -446,38 +465,43 @@ pub fn get_installer_type() -> String {
 }
 
 #[tauri::command]
-pub fn check_update(current_version: String, installer_type: String) -> Result<UpdateInfo, String> {
-    let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
+pub async fn check_update(current_version: String, installer_type: String) -> Result<UpdateInfo, String> {
+    let info = tauri::async_runtime::spawn_blocking(move || {
+        let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
 
-    let output = std::process::Command::new("curl")
-        .args(["-sL", "-H", "User-Agent: trayclip", &url])
-        .output()
-        .map_err(|e| format!("Failed to run curl: {}", e))?;
+        let output = std::process::Command::new("curl")
+            .args(["-sL", "-H", "User-Agent: trayclip", &url])
+            .output()
+            .map_err(|e| format!("Failed to run curl: {}", e))?;
 
-    if !output.status.success() {
-        return Err(format!("curl exited with status {}", output.status));
-    }
+        if !output.status.success() {
+            return Err(format!("curl exited with status {}", output.status));
+        }
 
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-    let tag = json["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
-    let body = json["body"].as_str().unwrap_or("").to_string();
-    let has_update = version_compare(tag, &current_version);
+        let tag = json["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
+        let body = json["body"].as_str().unwrap_or("").to_string();
+        let has_update = version_compare(tag, &current_version);
 
-    // Find platform-specific download URL from release assets
-    let assets = json["assets"].as_array().map(|a| a.as_slice()).unwrap_or(&[]);
-    let effective_type = if installer_type.is_empty() { "exe" } else { &installer_type };
-    let download_url = find_asset_url(assets, effective_type).unwrap_or_else(|| {
-        json["html_url"].as_str().unwrap_or("").to_string()
-    });
+        let assets = json["assets"].as_array().map(|a| a.as_slice()).unwrap_or(&[]);
+        let effective_type = if installer_type.is_empty() { "exe" } else { &installer_type };
+        let download_url = find_asset_url(assets, effective_type).unwrap_or_else(|| {
+            json["html_url"].as_str().unwrap_or("").to_string()
+        });
 
-    Ok(UpdateInfo {
-        has_update,
-        latest_version: tag.to_string(),
-        download_url,
-        body,
+        Ok(UpdateInfo {
+            has_update,
+            latest_version: tag.to_string(),
+            download_url,
+            body,
+        })
     })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?;
+
+    info
 }
 
 #[cfg(target_os = "windows")]

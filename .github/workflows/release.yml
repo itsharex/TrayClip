@@ -16,10 +16,13 @@ jobs:
         include:
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
+            args: --bundles nsis
           - platform: macos-latest
             target: aarch64-apple-darwin
+            args: ""
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -57,7 +60,7 @@ jobs:
           releaseBody: "See the assets below to download and install."
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.args }}
 
       - name: Remove unwanted Linux bundle files
         if: matrix.platform == 'ubuntu-22.04'
@@ -68,7 +71,7 @@ jobs:
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id') || exit 0
           gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
             case "$name" in
-              *.AppImage|*.deb|*.rpm|*.msi|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
+              *.AppImage|*.deb|*.rpm|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
                 echo "KEEP: $name"
                 ;;
               *)

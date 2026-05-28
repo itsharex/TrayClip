@@ -173,6 +173,14 @@ export function SettingsPanel({
                 />
               </div>
           ) : null}
+          <div className="settings-row">
+            <label>{t.urlToast}</label>
+            <input
+                type="checkbox"
+                checked={settings.url_toast}
+                onChange={(event) => onSettingsChange({ ...settings, url_toast: event.target.checked })}
+            />
+          </div>
           <div className="settings-stack-row settings-stack-row--danger">
             <label>{t.clearHistory}</label>
             <div className="settings-inline-actions">

@@ -23,6 +23,7 @@ const fallback: BootstrapPayload = {
     close_behavior: "hide",
     panel_position: "center",
     quick_paste: false,
+    url_toast: false,
   },
   hotkeys: [],
   permissions: {

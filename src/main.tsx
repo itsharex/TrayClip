@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { I18nProvider } from "./lib/i18n";
 import App from "./App";
 import QuickPanel from "./QuickPanel";
+import UrlToast from "./UrlToast";
 import "./styles.css";
 
 const label = getCurrentWindow().label;
@@ -20,10 +21,16 @@ document.addEventListener("contextmenu", (e) => {
     }
 });
 
+const Root = label === "quick-panel"
+    ? <QuickPanel />
+    : label === "url-toast"
+        ? <UrlToast />
+        : <App />;
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
         <I18nProvider>
-            {label === "quick-panel" ? <QuickPanel /> : <App />}
+            {Root}
         </I18nProvider>
     </React.StrictMode>,
 );
