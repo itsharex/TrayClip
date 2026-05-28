@@ -2,8 +2,11 @@ use std::{
     borrow::Cow,
     fs::File,
     io::BufWriter,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
+
+#[cfg(target_os = "windows")]
+use std::path::Path;
 
 #[cfg(target_os = "windows")]
 use std::ffi::OsStr;
@@ -36,6 +39,7 @@ use windows_sys::Win32::{
 #[cfg(target_os = "windows")]
 const CF_HDROP: u32 = 15;
 
+#[cfg(not(target_os = "linux"))]
 pub fn read_clipboard(paths: &AppPaths) -> anyhow::Result<Option<(String, NewClipRecord)>> {
     let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
     read_clipboard_with_clipboard(paths, &mut clipboard)
@@ -124,6 +128,7 @@ fn read_clipboard_with_clipboard(paths: &AppPaths, clipboard: &mut Clipboard) ->
     Ok(None)
 }
 
+#[cfg(not(target_os = "linux"))]
 pub fn peek_clipboard_signature(_paths: &AppPaths) -> anyhow::Result<Option<String>> {
     let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
     peek_signature_with_clipboard(_paths, &mut clipboard)
@@ -167,6 +172,7 @@ fn peek_signature_with_clipboard(_paths: &AppPaths, clipboard: &mut Clipboard) -
     Ok(None)
 }
 
+#[cfg(not(target_os = "linux"))]
 pub fn write_clipboard(record: &ClipRecord) -> anyhow::Result<()> {
     let mut clipboard = Clipboard::new().context("failed to open clipboard")?;
     write_clipboard_with_clipboard(record, &mut clipboard)

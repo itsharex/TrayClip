@@ -36,6 +36,7 @@ fn try_read_clipboard(state: &AppState) -> Option<(String, crate::models::NewCli
 struct Monitor<R: Runtime> {
     app: AppHandle<R>,
     paused: bool,
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     last_toast_seq: u32,
 }
 
