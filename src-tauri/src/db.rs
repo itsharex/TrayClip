@@ -114,7 +114,7 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
 
     conn.execute(
         "INSERT OR IGNORE INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast)
-         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center', 0, 1)",
+         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center', 0, 0)",
         [],
     )?;
 

@@ -2,14 +2,11 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use clipboard_master::{ClipboardHandler, CallbackResult, Master};
 
-use crate::{app_state::AppState, clipboard, db};
+use crate::{app_state::AppState, clipboard, db, commands};
 
-#[cfg(target_os = "windows")]
-use crate::commands;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber;
 
-#[cfg(target_os = "windows")]
 fn extract_url(text: &str) -> Option<String> {
     let start = text.find("http://").or_else(|| text.find("https://"))?;
     let rest = &text[start..];
@@ -39,7 +36,6 @@ fn try_read_clipboard(state: &AppState) -> Option<(String, crate::models::NewCli
 struct Monitor<R: Runtime> {
     app: AppHandle<R>,
     paused: bool,
-    #[cfg(target_os = "windows")]
     last_toast_seq: u32,
 }
 
@@ -68,22 +64,27 @@ impl<R: Runtime> ClipboardHandler for Monitor<R> {
             return CallbackResult::Next;
         };
 
-        // URL toast: use system clipboard sequence number to detect
-        // actual write events (fires even for identical content).
-        #[cfg(target_os = "windows")]
-        if settings.url_toast {
-            let seq = unsafe { GetClipboardSequenceNumber() };
-            if seq != self.last_toast_seq {
-                self.last_toast_seq = seq;
-                if let Some(url) = clip.plain_text.as_deref().and_then(extract_url) {
-                    commands::show_url_toast_window(&self.app, &url);
-                }
-            }
-        }
-
         // Ingest into DB only when content actually changed
         let mut last_signature = state.last_clip_signature.lock();
         if last_signature.as_ref() != Some(&signature) {
+            // URL toast
+            if settings.url_toast {
+                if let Some(url) = clip.plain_text.as_deref().and_then(extract_url) {
+                    // Windows: use sequence number to also fire on identical re-copies
+                    #[cfg(target_os = "windows")]
+                    {
+                        let seq = unsafe { GetClipboardSequenceNumber() };
+                        if seq != self.last_toast_seq {
+                            self.last_toast_seq = seq;
+                            commands::show_url_toast_window(&self.app, &url);
+                        }
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        commands::show_url_toast_window(&self.app, &url);
+                    }
+                }
+            }
             let cleanup_images = {
                 let conn = state.conn.lock();
                 db::ingest_clip(&conn, &settings, clip).ok();
@@ -109,7 +110,6 @@ pub fn spawn_clipboard_monitor<R: Runtime>(app: AppHandle<R>) {
     let handler = Monitor {
         app,
         paused: false,
-        #[cfg(target_os = "windows")]
         last_toast_seq: 0,
     };
 
