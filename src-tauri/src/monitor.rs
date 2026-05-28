@@ -2,11 +2,14 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use clipboard_master::{ClipboardHandler, CallbackResult, Master};
 
-use crate::{app_state::AppState, clipboard, db, commands};
+use crate::{app_state::AppState, clipboard, db};
 
+#[cfg(target_os = "windows")]
+use crate::commands;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber;
 
+#[cfg(target_os = "windows")]
 fn extract_url(text: &str) -> Option<String> {
     let start = text.find("http://").or_else(|| text.find("https://"))?;
     let rest = &text[start..];
@@ -36,6 +39,7 @@ fn try_read_clipboard(state: &AppState) -> Option<(String, crate::models::NewCli
 struct Monitor<R: Runtime> {
     app: AppHandle<R>,
     paused: bool,
+    #[cfg(target_os = "windows")]
     last_toast_seq: u32,
 }
 
@@ -105,6 +109,7 @@ pub fn spawn_clipboard_monitor<R: Runtime>(app: AppHandle<R>) {
     let handler = Monitor {
         app,
         paused: false,
+        #[cfg(target_os = "windows")]
         last_toast_seq: 0,
     };
 
