@@ -4,12 +4,18 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to generate latest.json for (e.g. v0.1.18)'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -112,15 +118,27 @@ jobs:
 
   generate-latest-json:
     needs: build
+    if: github.event_name == 'workflow_dispatch' || (!failure() && !cancelled())
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate and upload latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          TAG="${{ github.ref_name }}"
+          TAG="${{ steps.tag.outputs.tag }}"
           VERSION="${TAG#v}"
           REPO="${{ github.repository }}"
 
@@ -203,4 +221,4 @@ jobs:
 
           # Upload latest.json to the release
           gh release upload "$TAG" latest.json --repo "$REPO" --clobber
-          echo "Done: latest.json uploaded"
+          echo "Done: latest.json uploaded to release"
