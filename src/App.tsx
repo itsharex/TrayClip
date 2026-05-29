@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { backupData, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
@@ -41,26 +42,72 @@ interface ConfirmState {
   onCancel?: () => Promise<void> | void;
 }
 
+type UpdatePhase = "idle" | "checking" | "available" | "downloading" | "installing" | "done";
+
 function AboutPanel() {
   const { t } = useTranslation();
   const version = useAppVersion();
-  const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{ has_update: boolean; latest_version: string; download_url: string; body: string } | null>(null);
+  const [phase, setPhase] = useState<UpdatePhase>("idle");
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [updateBody, setUpdateBody] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const updateRef = useRef<Awaited<ReturnType<typeof check>>>(null);
+  const [upToDate, setUpToDate] = useState(false);
 
   const handleCheck = async () => {
-    setChecking(true);
-    setResult(null);
+    setPhase("checking");
     setError(null);
+    setUpToDate(false);
     try {
-      const runtimeVersion = await getVersion();
-      const info = await checkUpdate(runtimeVersion, "exe");
-      setResult(info);
+      const update = await check();
+      if (update) {
+        updateRef.current = update;
+        setUpdateVersion(update.version);
+        setUpdateBody(update.body ?? null);
+        setPhase("available");
+      } else {
+        setPhase("idle");
+        setUpdateVersion(null);
+        setUpdateBody(null);
+        setUpToDate(true);
+      }
     } catch (e) {
       setError(String(e));
-    } finally {
-      setChecking(false);
+      setPhase("idle");
     }
+  };
+
+  const handleInstall = async () => {
+    const update = updateRef.current;
+    if (!update) return;
+    setPhase("downloading");
+    setProgress(0);
+    setError(null);
+    try {
+      let contentLength = 0;
+      let downloaded = 0;
+      await update.downloadAndInstall((event: DownloadEvent) => {
+        if (event.event === "Started") {
+          contentLength = event.data.contentLength ?? 0;
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          if (contentLength > 0) {
+            setProgress(Math.round((downloaded / contentLength) * 100));
+          }
+        } else if (event.event === "Finished") {
+          setProgress(100);
+        }
+      });
+      setPhase("done");
+    } catch (e) {
+      setError(String(e));
+      setPhase("available");
+    }
+  };
+
+  const handleRelaunch = async () => {
+    await relaunch();
   };
 
   return (
@@ -78,21 +125,42 @@ function AboutPanel() {
           <li>Github：<a href="https://github.com/Heyiki/TrayClip" target="_blank" rel="noopener noreferrer">https://github.com/Heyiki/TrayClip</a></li>
         </ul>
         <div style={{ marginTop: 12 }}>
-          <button onClick={() => void handleCheck()} disabled={checking}>
-            {checking ? t.checking : t.checkUpdate}
+          <button onClick={() => void handleCheck()} disabled={phase === "checking" || phase === "downloading" || phase === "installing"}>
+            {phase === "checking" ? t.checking : t.checkUpdate}
           </button>
         </div>
-        {result ? (
+        {upToDate && phase === "idle" ? (
+            <p style={{ color: "var(--text-tertiary)", margin: "8px 0 0" }}>{t.upToDate}</p>
+        ) : null}
+        {phase === "available" && updateVersion ? (
             <div className="update-result">
-              {result.has_update ? (
-                  <>
-                    <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(result.latest_version)}</p>
-                    {result.body ? <pre className="update-changelog">{result.body}</pre> : null}
-                    <a href={result.download_url} target="_blank" rel="noopener noreferrer" className="update-link">{t.goToDownload}</a>
-                  </>
-              ) : (
-                  <p style={{ color: "var(--text-tertiary)", margin: "8px 0 0" }}>{t.upToDate}</p>
-              )}
+              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(updateVersion)}</p>
+              {updateBody ? <pre className="update-changelog">{updateBody}</pre> : null}
+              <button className="update-install-btn" onClick={() => void handleInstall()}>
+                {t.installUpdate}
+              </button>
+            </div>
+        ) : null}
+        {phase === "downloading" ? (
+            <div className="update-result">
+              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.downloading(progress)}</p>
+              <div className="update-progress-bar">
+                <div className="update-progress-bar__fill" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+        ) : null}
+        {phase === "installing" ? (
+            <div className="update-result">
+              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.installing}</p>
+            </div>
+        ) : null}
+        {phase === "done" ? (
+            <div className="update-result">
+              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.restartPrompt}</p>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button onClick={() => void handleRelaunch()}>{t.restart}</button>
+                <button onClick={() => setPhase("idle")}>{t.later}</button>
+              </div>
             </div>
         ) : null}
         {error ? <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(error)}</p> : null}

@@ -117,6 +117,13 @@ export const zh = {
   goToDownload: "前往下载",
   upToDate: "已是最新版本",
   checkFailed: (err: string) => `检查失败：${err}`,
+  downloading: (p: number) => `下载中 ${p}%`,
+  updateAvailable: "有新版本可用",
+  installUpdate: "安装更新",
+  installing: "安装中...",
+  restartPrompt: "更新已安装，是否立即重启？",
+  restart: "重启",
+  later: "稍后",
 
   // 设置页
   dataManagement: "数据管理",
