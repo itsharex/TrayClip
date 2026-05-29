@@ -148,6 +148,9 @@ export const zh = {
   restoreDefault: "恢复默认",
   pressHotkey: "按下快捷键...",
 
+  // 右键菜单
+  jsonCopy: "JSON 格式化复制",
+
   // 快捷面板
   quickPanelSearch: "搜索剪贴板...",
 };

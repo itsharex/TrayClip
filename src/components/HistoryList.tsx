@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { ClipGroup, ClipRecord } from "../lib/types";
 import { useTranslation } from "../lib/i18n";
 import { useImagePreview } from "../hooks/useImagePreview";
+import { extractUrl, isJson } from "../lib/utils";
+import ContextMenu, { type ContextMenuItem } from "./ContextMenu";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".tiff", ".tif", ".svg"]);
 
@@ -73,8 +76,38 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
   const clipImageSrc = useImagePreview(clip.content_type === "image" ? clip.image_path : null);
   const handleBodyDoubleClick = () => onRecopy(clip.id);
 
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+
+  const handleJsonCopy = useCallback(async () => {
+    const text = clip.plain_text;
+    if (text) {
+      try {
+        const formatted = JSON.stringify(JSON.parse(text), null, 2);
+        await navigator.clipboard.writeText(formatted);
+        return;
+      } catch {
+        // not JSON, fall through
+      }
+    }
+    onRecopy(clip.id);
+  }, [clip.id, clip.plain_text, onRecopy]);
+
+  const url = clip.plain_text ? extractUrl(clip.plain_text) : null;
+  const json = clip.plain_text ? isJson(clip.plain_text) : false;
+
+  const contextMenuItems: ContextMenuItem[] = [
+    ...(url ? [{ label: t.openLink, onClick: () => { void openUrl(url); } }] : []),
+    { label: json ? t.jsonCopy : t.copy, onClick: () => void handleJsonCopy() },
+  ];
+
   return (
-      <article className={`clip-card${clip.is_pinned ? " pinned" : ""}${selected ? " selected" : ""}`}>
+      <article
+          className={`clip-card${clip.is_pinned ? " pinned" : ""}${selected ? " selected" : ""}`}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenuPos({ x: e.clientX, y: e.clientY }); }}
+      >
+        {contextMenuPos ? (
+            <ContextMenu x={contextMenuPos.x} y={contextMenuPos.y} items={contextMenuItems} onClose={() => setContextMenuPos(null)} />
+        ) : null}
         <div className="clip-card__body" onDoubleClick={handleBodyDoubleClick}>
           <div className="clip-card__header">
             <span className="clip-type">{t.contentType[clip.content_type] ?? clip.content_type}</span>

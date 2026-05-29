@@ -141,4 +141,6 @@ export const en: typeof zh = {
   pressHotkey: "Press hotkey...",
 
   quickPanelSearch: "Search clipboard...",
+
+  jsonCopy: "Copy as formatted JSON",
 };
