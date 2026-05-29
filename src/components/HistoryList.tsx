@@ -78,6 +78,12 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
 
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
 
+  useEffect(() => {
+    const close = () => setContextMenuPos(null);
+    window.addEventListener("blur", close);
+    return () => window.removeEventListener("blur", close);
+  }, []);
+
   const handleJsonCopy = useCallback(async () => {
     const text = clip.plain_text;
     if (text) {
