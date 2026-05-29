@@ -92,62 +92,74 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           TAG="${{ github.ref_name }}"
           VERSION="${TAG#v}"
           REPO="${{ github.repository }}"
-          RELEASE_ID=$(gh api repos/$REPO/releases/tags/$TAG --jq '.id')
 
-          # Create temp dir for .sig files
-          SIG_DIR=$(mktemp -d)
+          # Use gh release view which works with draft releases
+          RELEASE_JSON=$(gh release view "$TAG" --repo "$REPO" --json databaseId,tagName,body)
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.databaseId')
+          echo "Release ID: $RELEASE_ID, Tag: $TAG"
 
-          # Fetch all asset names from the release
-          ASSETS=$(gh api repos/$REPO/releases/$RELEASE_ID/assets --paginate --jq '.[].name')
+          # Fetch all assets via API
+          ASSET_JSON=$(gh api repos/$REPO/releases/$RELEASE_ID/assets --paginate)
+          echo "Assets found:"
+          echo "$ASSET_JSON" | jq -r '.[].name'
 
-          # Helper: download a .sig file and return its content (trimmed)
+          # Helper: find .sig asset id by base asset name, download content
           get_sig() {
-            local asset_name="$1"
-            local sig_file="${SIG_DIR}/${asset_name}.sig"
-            gh release download "$TAG" --repo "$REPO" --pattern "${asset_name}.sig" --output "$sig_file" 2>/dev/null || true
-            if [ -f "$sig_file" ]; then
-              cat "$sig_file" | tr -d '\n'
+            local base_name="$1"
+            local sig_name="${base_name}.sig"
+            local sig_id
+            sig_id=$(echo "$ASSET_JSON" | jq -r --arg name "$sig_name" '.[] | select(.name == $name) | .id // empty')
+            if [ -n "$sig_id" ]; then
+              echo "  Downloading sig: $sig_name (id=$sig_id)" >&2
+              curl -sL -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/octet-stream" \
+                "https://api.github.com/repos/$REPO/releases/assets/$sig_id"
             else
+              echo "  WARNING: .sig not found for $base_name" >&2
               echo ""
             fi
           }
 
-          # Build platforms map dynamically based on what was actually uploaded
+          # Build platforms map dynamically
           PLATFORMS="{}"
-          for asset in $ASSETS; do
+          while IFS= read -r asset; do
             case "$asset" in
               *-setup.exe)
+                echo "Processing Windows asset: $asset"
                 SIG=$(get_sig "$asset")
                 PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
                   '. + {"windows-x86_64": {"signature": $sig, "url": $url}}')
                 ;;
-              *-aarch64.dmg|*_aarch64.dmg|*aarch64*.dmg)
+              *aarch64*.dmg)
+                echo "Processing macOS ARM asset: $asset"
                 SIG=$(get_sig "$asset")
                 PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
                   '. + {"darwin-aarch64": {"signature": $sig, "url": $url}}')
                 ;;
-              *-x64.dmg|*_x64.dmg|*x86_64*.dmg)
+              *x64*.dmg)
+                echo "Processing macOS x64 asset: $asset"
                 SIG=$(get_sig "$asset")
                 PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
                   '. + {"darwin-x86_64": {"signature": $sig, "url": $url}}')
                 ;;
               *.AppImage.tar.gz|*.AppImage.zsync|*.sig)
-                # skip these
+                # skip non-installer assets
                 ;;
               *amd64*.AppImage|*x86_64*.AppImage)
+                echo "Processing Linux asset: $asset"
                 SIG=$(get_sig "$asset")
                 PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
                   '. + {"linux-x86_64": {"signature": $sig, "url": $url}}')
                 ;;
             esac
-          done
+          done < <(echo "$ASSET_JSON" | jq -r '.[].name')
 
-          rm -rf "$SIG_DIR"
-
-          BODY=$(gh api repos/$REPO/releases/$RELEASE_ID --jq '.body // ""')
+          BODY=$(echo "$RELEASE_JSON" | jq -r '.body // ""')
 
           jq -n \
             --arg version "$VERSION" \
@@ -160,8 +172,9 @@ jobs:
               platforms: $platforms
             }' > latest.json
 
-          echo "Generated latest.json:"
+          echo "=== Generated latest.json ==="
           cat latest.json
 
           # Upload latest.json to the release
           gh release upload "$TAG" latest.json --repo "$REPO" --clobber
+          echo "Done: latest.json uploaded"
