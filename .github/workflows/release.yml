@@ -64,6 +64,32 @@ jobs:
           prerelease: false
           args: --target ${{ matrix.target }} ${{ matrix.args }}
 
+      - name: Sign and upload updater signatures
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+
+          # Find all installer files and sign them
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          echo "Looking for installers in: $BUNDLE_DIR"
+          find "$BUNDLE_DIR" -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" \) ! -name "*.sig" | while read -r file; do
+            echo "Signing: $file"
+            npx tauri signer sign "$file" || echo "WARNING: signing failed for $file"
+            sig_file="${file}.sig"
+            if [ -f "$sig_file" ]; then
+              echo "Uploading: $sig_file"
+              gh release upload "$TAG" "$sig_file" --repo "$REPO" --clobber || echo "WARNING: upload failed for $sig_file"
+            else
+              echo "WARNING: .sig file not generated for $file"
+            fi
+          done
+
       - name: Remove unwanted Linux bundle files
         if: matrix.platform == 'ubuntu-22.04'
         continue-on-error: true
@@ -73,7 +99,7 @@ jobs:
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id') || exit 0
           gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
             case "$name" in
-              *.AppImage|*.deb|*.rpm|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
+              *.AppImage|*.deb|*.rpm|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync|*.sig)
                 echo "KEEP: $name"
                 ;;
               *)
