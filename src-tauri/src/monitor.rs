@@ -65,27 +65,32 @@ impl<R: Runtime> ClipboardHandler for Monitor<R> {
             return CallbackResult::Next;
         };
 
-        // Ingest into DB only when content actually changed
         let mut last_signature = state.last_clip_signature.lock();
-        if last_signature.as_ref() != Some(&signature) {
-            // URL toast
-            if settings.url_toast {
-                if let Some(url) = clip.plain_text.as_deref().and_then(extract_url) {
-                    // Windows: use sequence number to also fire on identical re-copies
-                    #[cfg(target_os = "windows")]
-                    {
-                        let seq = unsafe { GetClipboardSequenceNumber() };
-                        if seq != self.last_toast_seq {
-                            self.last_toast_seq = seq;
-                            commands::show_url_toast_window(&self.app, &url);
-                        }
+
+        // URL toast — independent of DB dedup
+        if settings.url_toast {
+            if let Some(url) = clip.plain_text.as_deref().and_then(extract_url) {
+                // Windows: sequence number — fires on every copy including identical re-copies
+                #[cfg(target_os = "windows")]
+                {
+                    let seq = unsafe { GetClipboardSequenceNumber() };
+                    if seq != self.last_toast_seq {
+                        self.last_toast_seq = seq;
+                        commands::show_url_toast_window(&self.app, &url);
                     }
-                    #[cfg(not(target_os = "windows"))]
-                    {
+                }
+                // Non-Windows: signature — only fires when content changes
+                #[cfg(not(target_os = "windows"))]
+                {
+                    if last_signature.as_ref() != Some(&signature) {
                         commands::show_url_toast_window(&self.app, &url);
                     }
                 }
             }
+        }
+
+        // Ingest into DB only when content actually changed
+        if last_signature.as_ref() != Some(&signature) {
             let cleanup_images = {
                 let conn = state.conn.lock();
                 db::ingest_clip(&conn, &settings, clip).ok();

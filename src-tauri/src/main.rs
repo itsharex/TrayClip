@@ -19,23 +19,30 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 fn apply_pending_restore(app: &tauri::AppHandle) {
     let resolver = app.path();
 
-    // Find root_dir (same logic as AppPaths::resolve)
-    let install_dir = resolver
-        .resource_dir()
-        .or_else(|_| resolver.app_config_dir())
-        .or_else(|_| resolver.app_data_dir());
-    let Ok(install_dir) = install_dir else { return };
+    // Must match AppPaths::resolve logic exactly.
+    // macOS: only app_data_dir() (resource_dir is inside .app bundle, replaced on update).
+    // Windows/Linux: resource_dir()/data first, app_data_dir() as fallback.
+    #[cfg(target_os = "macos")]
+    let default_root_dir = resolver.app_data_dir().ok()
+        .filter(|dir| std::fs::create_dir_all(dir).is_ok());
 
-    let candidate_dirs = [
-        install_dir.join("data"),
-        resolver.app_data_dir().unwrap_or_else(|_| install_dir.clone()),
-    ];
-
-    let default_root_dir = candidate_dirs
-        .iter()
-        .find(|dir| dir.join("trayclip.db").exists())
-        .cloned()
-        .or_else(|| candidate_dirs.iter().find(|dir| std::fs::create_dir_all(dir).is_ok()).cloned());
+    #[cfg(not(target_os = "macos"))]
+    let default_root_dir = {
+        let install_dir = resolver
+            .resource_dir()
+            .or_else(|_| resolver.app_config_dir())
+            .or_else(|_| resolver.app_data_dir());
+        let Ok(install_dir) = install_dir else { return };
+        let candidate_dirs = [
+            install_dir.join("data"),
+            resolver.app_data_dir().unwrap_or_else(|_| install_dir.clone()),
+        ];
+        candidate_dirs
+            .iter()
+            .find(|dir| dir.join("trayclip.db").exists())
+            .cloned()
+            .or_else(|| candidate_dirs.iter().find(|dir| std::fs::create_dir_all(dir).is_ok()).cloned())
+    };
 
     let Some(default_root_dir) = default_root_dir else { return };
 

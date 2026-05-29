@@ -324,10 +324,20 @@ pub fn quit_app(app: AppHandle) {
 }
 
 pub fn position_quick_panel(window: &tauri::WebviewWindow, panel_position: &str) {
+    let win_w = 360;
+    let win_h = 460;
+
     if panel_position == "follow_mouse" {
         if let Ok(pos) = window.cursor_position() {
-            let x = pos.x as i32 + 12;
-            let y = pos.y as i32 + 12;
+            let mut x = pos.x as i32 + 12;
+            let mut y = pos.y as i32 + 12;
+            // Clamp to monitor bounds so the panel stays on screen
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let mp = monitor.position();
+                let ms = monitor.size();
+                x = x.clamp(mp.x, mp.x + ms.width as i32 - win_w);
+                y = y.clamp(mp.y, mp.y + ms.height as i32 - win_h);
+            }
             let _ = window.set_position(Position::Physical(tauri::PhysicalPosition { x, y }));
             return;
         }
@@ -336,8 +346,6 @@ pub fn position_quick_panel(window: &tauri::WebviewWindow, panel_position: &str)
     if let Ok(Some(monitor)) = window.current_monitor() {
         let size = monitor.size();
         let pos = monitor.position();
-        let win_w = 360;
-        let win_h = 460;
         let x = pos.x + (size.width as i32 - win_w) / 2;
         let y = pos.y + (size.height as i32 - win_h) / 2;
         let _ = window.set_position(Position::Physical(tauri::PhysicalPosition { x, y }));
@@ -426,10 +434,18 @@ pub fn simulate_paste() -> Result<(), String> {
 pub fn show_url_toast_window<R: tauri::Runtime>(app: &AppHandle<R>, url: &str) {
     if let Some(window) = app.webview_windows().get("url-toast").cloned() {
         let _ = window.emit("url-toast://show", url);
-        // Position at mouse cursor
+        // Position at mouse cursor, clamped to monitor bounds
         if let Ok(pos) = window.cursor_position() {
-            let x = pos.x as i32 + 16;
-            let y = pos.y as i32 - 50;
+            let toast_w = 220;
+            let toast_h = 44;
+            let mut x = pos.x as i32 + 16;
+            let mut y = pos.y as i32 - 50;
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let mp = monitor.position();
+                let ms = monitor.size();
+                x = x.clamp(mp.x, mp.x + ms.width as i32 - toast_w);
+                y = y.clamp(mp.y, mp.y + ms.height as i32 - toast_h);
+            }
             let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }
         let _ = window.show();
