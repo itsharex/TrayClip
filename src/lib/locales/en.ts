@@ -110,13 +110,6 @@ export const en: typeof zh = {
   goToDownload: "Go to download",
   upToDate: "Already up to date",
   checkFailed: (err: string) => `Check failed: ${err}`,
-  downloading: (p: number) => `Downloading ${p}%`,
-  updateAvailable: "Update available",
-  installUpdate: "Install update",
-  installing: "Installing...",
-  restartPrompt: "Update installed. Restart now?",
-  restart: "Restart",
-  later: "Later",
 
   dataManagement: "Data Management",
   retentionLimit: "Retention limit",

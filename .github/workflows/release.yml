@@ -4,18 +4,12 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to generate latest.json for (e.g. v0.1.18)'
-        required: true
 
 permissions:
   contents: write
 
 jobs:
   build:
-    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -60,8 +54,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: TrayClip ${{ github.ref_name }}
@@ -69,32 +61,6 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }} ${{ matrix.args }}
-
-      - name: Sign and upload updater signatures
-        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        shell: bash
-        run: |
-          TAG="${{ github.ref_name }}"
-          REPO="${{ github.repository }}"
-
-          # Find all installer files and sign them
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
-          echo "Looking for installers in: $BUNDLE_DIR"
-          find "$BUNDLE_DIR" -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" \) ! -name "*.sig" | while read -r file; do
-            echo "Signing: $file"
-            npx tauri signer sign "$file" || echo "WARNING: signing failed for $file"
-            sig_file="${file}.sig"
-            if [ -f "$sig_file" ]; then
-              echo "Uploading: $sig_file"
-              gh release upload "$TAG" "$sig_file" --repo "$REPO" --clobber || echo "WARNING: upload failed for $sig_file"
-            else
-              echo "WARNING: .sig file not generated for $file"
-            fi
-          done
 
       - name: Remove unwanted Linux bundle files
         if: matrix.platform == 'ubuntu-22.04'
@@ -105,7 +71,7 @@ jobs:
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id') || exit 0
           gh api repos/${{ github.repository }}/releases/$RELEASE_ID/assets --paginate --jq '.[] | "\(.id) \(.name)"' | while read id name; do
             case "$name" in
-              *.AppImage|*.deb|*.rpm|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync|*.sig)
+              *.AppImage|*.deb|*.rpm|*.exe|*.dmg|*.AppImage.tar.gz|*.AppImage.zsync)
                 echo "KEEP: $name"
                 ;;
               *)
@@ -115,110 +81,3 @@ jobs:
             esac
           done
         shell: bash
-
-  generate-latest-json:
-    needs: build
-    if: github.event_name == 'workflow_dispatch' || (!failure() && !cancelled())
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Generate and upload latest.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          TAG="${{ steps.tag.outputs.tag }}"
-          VERSION="${TAG#v}"
-          REPO="${{ github.repository }}"
-
-          # Use gh release view which works with draft releases
-          RELEASE_JSON=$(gh release view "$TAG" --repo "$REPO" --json databaseId,tagName,body)
-          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.databaseId')
-          echo "Release ID: $RELEASE_ID, Tag: $TAG"
-
-          # Fetch all assets via API
-          ASSET_JSON=$(gh api repos/$REPO/releases/$RELEASE_ID/assets --paginate)
-          echo "Assets found:"
-          echo "$ASSET_JSON" | jq -r '.[].name'
-
-          # Helper: find .sig asset id by base asset name, download content
-          get_sig() {
-            local base_name="$1"
-            local sig_name="${base_name}.sig"
-            local sig_id
-            sig_id=$(echo "$ASSET_JSON" | jq -r --arg name "$sig_name" '.[] | select(.name == $name) | .id // empty')
-            if [ -n "$sig_id" ]; then
-              echo "  Downloading sig: $sig_name (id=$sig_id)" >&2
-              curl -sL -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Accept: application/octet-stream" \
-                "https://api.github.com/repos/$REPO/releases/assets/$sig_id"
-            else
-              echo "  WARNING: .sig not found for $base_name" >&2
-              echo ""
-            fi
-          }
-
-          # Build platforms map dynamically
-          PLATFORMS="{}"
-          while IFS= read -r asset; do
-            case "$asset" in
-              *-setup.exe)
-                echo "Processing Windows asset: $asset"
-                SIG=$(get_sig "$asset")
-                PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
-                  '. + {"windows-x86_64": {"signature": $sig, "url": $url}}')
-                ;;
-              *aarch64*.dmg)
-                echo "Processing macOS ARM asset: $asset"
-                SIG=$(get_sig "$asset")
-                PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
-                  '. + {"darwin-aarch64": {"signature": $sig, "url": $url}}')
-                ;;
-              *x64*.dmg)
-                echo "Processing macOS x64 asset: $asset"
-                SIG=$(get_sig "$asset")
-                PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
-                  '. + {"darwin-x86_64": {"signature": $sig, "url": $url}}')
-                ;;
-              *.AppImage.tar.gz|*.AppImage.zsync|*.sig)
-                # skip non-installer assets
-                ;;
-              *amd64*.AppImage|*x86_64*.AppImage)
-                echo "Processing Linux asset: $asset"
-                SIG=$(get_sig "$asset")
-                PLATFORMS=$(echo "$PLATFORMS" | jq --arg url "https://github.com/$REPO/releases/download/$TAG/$asset" --arg sig "$SIG" \
-                  '. + {"linux-x86_64": {"signature": $sig, "url": $url}}')
-                ;;
-            esac
-          done < <(echo "$ASSET_JSON" | jq -r '.[].name')
-
-          BODY=$(echo "$RELEASE_JSON" | jq -r '.body // ""')
-
-          jq -n \
-            --arg version "$VERSION" \
-            --arg notes "$BODY" \
-            --argjson platforms "$PLATFORMS" \
-            '{
-              version: $version,
-              notes: $notes,
-              pub_date: (now | todate),
-              platforms: $platforms
-            }' > latest.json
-
-          echo "=== Generated latest.json ==="
-          cat latest.json
-
-          # Upload latest.json to the release
-          gh release upload "$TAG" latest.json --repo "$REPO" --clobber
-          echo "Done: latest.json uploaded to release"

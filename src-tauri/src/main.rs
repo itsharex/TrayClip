@@ -7,7 +7,6 @@ mod db;
 mod models;
 mod monitor;
 mod paths;
-mod updater_cmd;
 
 use anyhow::Context;
 use app_state::AppState;
@@ -249,7 +248,6 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -261,7 +259,6 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Hide Dock icon on macOS — keep only the menu bar tray icon
             #[cfg(target_os = "macos")]
@@ -375,12 +372,12 @@ fn main() {
             commands::hide_quick_panel,
             commands::set_dragging,
             commands::simulate_paste,
+            commands::check_update,
+            commands::get_installer_type,
             commands::reload_global_shortcuts,
             commands::backup_data,
             commands::restore_backup,
-            commands::show_url_toast,
-            updater_cmd::check_update,
-            updater_cmd::download_and_install_update
+            commands::show_url_toast
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");

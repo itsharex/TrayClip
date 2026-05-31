@@ -29,33 +29,17 @@ export const hideQuickPanel = (pasteAfter = false) => invoke("hide_quick_panel",
 export const setDragging = (dragging: boolean) => invoke("set_dragging", { dragging });
 export const simulatePaste = () => invoke("simulate_paste");
 
+export interface UpdateInfo {
+  has_update: boolean;
+  latest_version: string;
+  download_url: string;
+  body: string;
+}
+
+export const checkUpdate = (currentVersion: string, installerType: string) => invoke<UpdateInfo>("check_update", { currentVersion, installerType });
+
+export const getInstallerType = () => invoke<string>("get_installer_type");
+
 export const backupData = (savePath: string) => invoke<string>("backup_data", { savePath });
 
 export const restoreBackup = (zipPath: string) => invoke<void>("restore_backup", { zipPath });
-
-export interface UpdateInfo {
-  version: string;
-  download_url: string;
-  signature: string;
-  body: string | null;
-}
-
-export interface DownloadProgress {
-  event: string;
-  contentLength: number | null;
-  chunkLength: number;
-}
-
-export const checkUpdate = () => invoke<UpdateInfo | null>("check_update");
-
-export const downloadAndInstallUpdate = (
-    downloadUrl: string,
-    signature: string,
-    onProgress: (progress: DownloadProgress) => void,
-) => invoke<void>("download_and_install_update", {
-  downloadUrl,
-  signature,
-  onProgress: {
-    onMessage: onProgress,
-  },
-});
