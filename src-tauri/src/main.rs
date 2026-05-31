@@ -7,6 +7,7 @@ mod db;
 mod models;
 mod monitor;
 mod paths;
+mod updater_cmd;
 
 use anyhow::Context;
 use app_state::AppState;
@@ -377,7 +378,9 @@ fn main() {
             commands::reload_global_shortcuts,
             commands::backup_data,
             commands::restore_backup,
-            commands::show_url_toast
+            commands::show_url_toast,
+            updater_cmd::check_update,
+            updater_cmd::download_and_install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");

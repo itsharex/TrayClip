@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { backupData, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, downloadAndInstallUpdate, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
@@ -52,7 +50,7 @@ function AboutPanel() {
   const [updateBody, setUpdateBody] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const updateRef = useRef<Awaited<ReturnType<typeof check>>>(null);
+  const updateRef = useRef<{ version: string; download_url: string; signature: string } | null>(null);
   const [upToDate, setUpToDate] = useState(false);
 
   const handleCheck = async () => {
@@ -60,7 +58,7 @@ function AboutPanel() {
     setError(null);
     setUpToDate(false);
     try {
-      const update = await check();
+      const update = await checkUpdate();
       if (update) {
         updateRef.current = update;
         setUpdateVersion(update.version);
@@ -73,6 +71,7 @@ function AboutPanel() {
         setUpToDate(true);
       }
     } catch (e) {
+      console.error("[updater] check failed:", e);
       setError(String(e));
       setPhase("idle");
     }
@@ -87,27 +86,24 @@ function AboutPanel() {
     try {
       let contentLength = 0;
       let downloaded = 0;
-      await update.downloadAndInstall((event: DownloadEvent) => {
-        if (event.event === "Started") {
-          contentLength = event.data.contentLength ?? 0;
-        } else if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
+      await downloadAndInstallUpdate(update.download_url, update.signature, (event) => {
+        if (event.event === "started") {
+          contentLength = event.contentLength ?? 0;
+        } else if (event.event === "progress") {
+          downloaded += event.chunkLength;
           if (contentLength > 0) {
             setProgress(Math.round((downloaded / contentLength) * 100));
           }
-        } else if (event.event === "Finished") {
+        } else if (event.event === "finished") {
           setProgress(100);
         }
       });
+      // The installer launches and exits the app
       setPhase("done");
     } catch (e) {
       setError(String(e));
       setPhase("available");
     }
-  };
-
-  const handleRelaunch = async () => {
-    await relaunch();
   };
 
   return (
@@ -156,11 +152,7 @@ function AboutPanel() {
         ) : null}
         {phase === "done" ? (
             <div className="update-result">
-              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.restartPrompt}</p>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button onClick={() => void handleRelaunch()}>{t.restart}</button>
-                <button onClick={() => setPhase("idle")}>{t.later}</button>
-              </div>
+              <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.installing}</p>
             </div>
         ) : null}
         {error ? <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(error)}</p> : null}

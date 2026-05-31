@@ -32,3 +32,30 @@ export const simulatePaste = () => invoke("simulate_paste");
 export const backupData = (savePath: string) => invoke<string>("backup_data", { savePath });
 
 export const restoreBackup = (zipPath: string) => invoke<void>("restore_backup", { zipPath });
+
+export interface UpdateInfo {
+  version: string;
+  download_url: string;
+  signature: string;
+  body: string | null;
+}
+
+export interface DownloadProgress {
+  event: string;
+  contentLength: number | null;
+  chunkLength: number;
+}
+
+export const checkUpdate = () => invoke<UpdateInfo | null>("check_update");
+
+export const downloadAndInstallUpdate = (
+    downloadUrl: string,
+    signature: string,
+    onProgress: (progress: DownloadProgress) => void,
+) => invoke<void>("download_and_install_update", {
+  downloadUrl,
+  signature,
+  onProgress: {
+    onMessage: onProgress,
+  },
+});
