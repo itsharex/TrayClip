@@ -42,11 +42,15 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
     );
 
     useEffect(() => {
-        document.addEventListener("pointerdown", handleClickOutside, true);
-        document.addEventListener("keydown", (function onKey(e: KeyboardEvent) {
+        const handleKeydown = (e: KeyboardEvent) => {
             if (e.key === "Escape") onClose();
-        }), { once: true });
-        return () => document.removeEventListener("pointerdown", handleClickOutside, true);
+        };
+        document.addEventListener("pointerdown", handleClickOutside, true);
+        document.addEventListener("keydown", handleKeydown, { once: true });
+        return () => {
+            document.removeEventListener("pointerdown", handleClickOutside, true);
+            document.removeEventListener("keydown", handleKeydown);
+        };
     }, [handleClickOutside, onClose]);
 
     return (

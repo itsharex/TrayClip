@@ -56,7 +56,14 @@ export default function QuickPanel() {
     setState(payload);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let unlisten: (() => void) | undefined;
+    win.onFocusChanged(({ payload: focused }) => {
+      if (focused) void load();
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [load]);
 
   useEffect(() => {
     const saved = localStorage.getItem("trayclip-theme") || "light";

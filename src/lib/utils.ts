@@ -11,8 +11,8 @@ export function isJson(text: string): boolean {
 }
 
 export function extractUrl(text: string): string | null {
-    const start = text.indexOf("http://");
-    const idx = start >= 0 ? start : text.indexOf("https://");
+    const start = text.indexOf("https://");
+    const idx = start >= 0 ? start : text.indexOf("http://");
     if (idx < 0) return null;
     const rest = text.slice(idx);
     const end = rest.search(/\s/);

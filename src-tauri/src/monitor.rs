@@ -8,7 +8,7 @@ use crate::{app_state::AppState, clipboard, db, commands};
 use windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber;
 
 fn extract_url(text: &str) -> Option<String> {
-    let start = text.find("http://").or_else(|| text.find("https://"))?;
+    let start = text.find("https://").or_else(|| text.find("http://"))?;
     let rest = &text[start..];
     let end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
     let url = &rest[..end];
@@ -93,8 +93,7 @@ impl<R: Runtime> ClipboardHandler for Monitor<R> {
         if last_signature.as_ref() != Some(&signature) {
             let cleanup_images = {
                 let conn = state.conn.lock();
-                db::ingest_clip(&conn, &settings, clip).ok();
-                db::cleanup_overflow(&conn, settings.retention_limit).unwrap_or_default()
+                db::ingest_clip(&conn, &settings, clip).unwrap_or_default()
             };
             for image in cleanup_images {
                 let _ = std::fs::remove_file(image);

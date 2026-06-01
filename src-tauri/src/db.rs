@@ -362,7 +362,7 @@ fn content_type_key(content_type: &ClipContentType) -> &'static str {
     }
 }
 
-pub fn ingest_clip(conn: &Connection, settings: &AppSettings, payload: NewClipRecord) -> anyhow::Result<()> {
+pub fn ingest_clip(conn: &Connection, settings: &AppSettings, payload: NewClipRecord) -> anyhow::Result<Vec<String>> {
     let now = Utc::now().to_rfc3339();
     let content_type = content_type_key(&payload.content_type);
     let existing_clip_id: Option<i64> = conn
@@ -382,16 +382,16 @@ pub fn ingest_clip(conn: &Connection, settings: &AppSettings, payload: NewClipRe
             "DELETE FROM clips WHERE content_type = ?1 AND content_hash = ?2 AND id != ?3",
             params![content_type, payload.content_hash, clip_id],
         )?;
-        cleanup_overflow(conn, settings.retention_limit)?;
-        return Ok(());
+        let images = cleanup_overflow(conn, settings.retention_limit)?;
+        return Ok(images);
     }
 
     conn.execute(
         "INSERT INTO clips(content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at, content_hash, position_updated_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, NULL, ?9, ?9, NULL, ?10, ?9)",
         params![content_type, payload.plain_text, payload.rich_text, payload.summary, payload.image_path, serde_json::to_string(&payload.file_paths)?, payload.source_app, payload.is_truncated as i64, now, payload.content_hash],
     )?;
-    cleanup_overflow(conn, settings.retention_limit)?;
-    Ok(())
+    let images = cleanup_overflow(conn, settings.retention_limit)?;
+    Ok(images)
 }
 
 pub fn cleanup_overflow(conn: &Connection, retention_limit: i64) -> anyhow::Result<Vec<String>> {
