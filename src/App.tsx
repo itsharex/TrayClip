@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Languages, Moon, Settings, Sun, X } from "lucide-react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
@@ -380,7 +381,7 @@ export default function App() {
                 onClick={() => setLocale(locale === "zh-CN" ? "en" : "zh-CN")}
                 title={t.toggleLang}
             >
-              {locale === "zh-CN" ? "En" : "中"}
+              <Languages size={16} />
             </button>
             <button
                 className="window-bar__theme"
@@ -389,7 +390,7 @@ export default function App() {
                 onClick={() => setTheme((th) => th === "light" ? "dark" : "light")}
                 title={t.toggleTheme}
             >
-              {theme === "light" ? "🌙" : "☀"}
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
             </button>
             <div className="window-bar__settings" ref={settingsMenuRef}>
               <button
@@ -398,7 +399,7 @@ export default function App() {
                   aria-label={t.settings}
                   onClick={() => setSettingsMenuOpen((open) => !open)}
               >
-                {t.settings}
+                <Settings size={16} />
               </button>
               {settingsMenuOpen ? (
                   <div className="window-bar__settings-menu" role="menu">
@@ -415,7 +416,7 @@ export default function App() {
                 aria-label={t.closeWindow}
                 onClick={() => void handleWindowClose()}
             >
-              ×
+              <X size={16} />
             </button>
           </div>
         </header>

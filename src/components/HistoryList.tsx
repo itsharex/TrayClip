@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Copy, Pin, PinOff, Tag, Trash2 } from "lucide-react";
 import type { ClipGroup, ClipRecord } from "../lib/types";
 import { useTranslation } from "../lib/i18n";
 import { useImagePreview } from "../hooks/useImagePreview";
@@ -24,14 +25,13 @@ function GroupSelectPopover({ groups, currentGroupId, onSelect }: GroupSelectPop
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
-  const btnRef = useRef<HTMLButtonElement>(null);
 
-  const currentName = currentGroupId != null ? groups.find((g) => g.id === currentGroupId)?.name ?? t.ungrouped : t.ungrouped;
+  const currentGroup = currentGroupId != null ? groups.find((g) => g.id === currentGroupId) : null;
   const filtered = groups.filter((g) => g.name.toLowerCase().includes(keyword.toLowerCase()));
 
   return (
       <>
-        <button ref={btnRef} className="group-select-btn" onClick={() => setOpen(true)}>{currentName}</button>
+        <button className="group-select-btn" onClick={() => setOpen(true)}>{currentGroup ? currentGroup.name : <Tag size={14} />}</button>
         {open ? (
             <div className="group-select-backdrop" onClick={() => { setOpen(false); setKeyword(""); }}>
               <div className="group-select-sheet" onClick={(e) => e.stopPropagation()}>
@@ -39,7 +39,7 @@ function GroupSelectPopover({ groups, currentGroupId, onSelect }: GroupSelectPop
                   <input autoFocus className="group-select-search" placeholder={t.searchGroup} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
                 </div>
                 <div className="group-select-list">
-                  <button className={currentGroupId == null ? "group-select-item active" : "group-select-item"} onClick={() => { onSelect(null); setOpen(false); setKeyword(""); }}>{t.ungrouped}</button>
+                  <button className={currentGroupId == null ? "group-select-item active" : "group-select-item"} onClick={() => { onSelect(null); setOpen(false); setKeyword(""); }}><Tag size={14} /> {t.ungrouped}</button>
                   {filtered.map((group) => (
                       <button key={group.id} className={currentGroupId === group.id ? "group-select-item active" : "group-select-item"} onClick={() => { onSelect(group.id); setOpen(false); setKeyword(""); }}>{group.name}</button>
                   ))}
@@ -137,10 +137,10 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
         </div>
 
         <div className="clip-actions">
-          <button className="primary" onClick={() => onRecopy(clip.id)}>{t.copy}</button>
-          <button onClick={() => onPinToggle(clip.id, !clip.is_pinned)}>{clip.is_pinned ? t.unpin : t.pin}</button>
           <GroupSelectPopover groups={groups} currentGroupId={clip.group_id} onSelect={(groupId) => onMoveGroup(clip.id, groupId)} />
-          <button className="ghost danger" onClick={() => onDelete(clip.id)}>{t.delete}</button>
+          <button className="ghost icon-btn" title={t.copy} onClick={() => onRecopy(clip.id)}><Copy size={16} /></button>
+          <button className="ghost icon-btn" title={clip.is_pinned ? t.unpin : t.pin} onClick={() => onPinToggle(clip.id, !clip.is_pinned)}>{clip.is_pinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
+          <button className="ghost danger icon-btn" title={t.delete} onClick={() => onDelete(clip.id)}><Trash2 size={16} /></button>
         </div>
       </article>
   );

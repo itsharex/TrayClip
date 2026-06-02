@@ -7,8 +7,6 @@ export const en: typeof zh = {
   confirm: "Confirm",
   cancel: "Cancel",
   delete: "Delete",
-  export: "Export",
-  import: "Import",
   search: "Search",
   settings: "Settings",
   help: "Help",
@@ -38,7 +36,6 @@ export const en: typeof zh = {
 
   contentTruncated: "Content truncated",
   moreFiles: (n: number) => `and ${n} more files`,
-  loading: "Loading...",
   emptyRecords: "No records",
 
   searchGroup: "Search groups",
@@ -64,7 +61,7 @@ export const en: typeof zh = {
     ["Main Window", "Open via system tray icon, tray menu, or hotkey"],
     ["Quick Panel", "A lightweight floating window for quick search and copy. Press Esc or click elsewhere to close"],
     ["Drag to Move", "Both windows can be dragged by their top area"],
-    ["Close Main Window", "Click × to hide to tray by default. Can be changed to exit or ask in settings"],
+    ["Close Main Window", "Click the close icon to hide to tray by default. Can be changed to exit or ask in settings"],
   ],
   helpClipboard: "Clipboard Records",
   helpClipboardItems: [
@@ -104,8 +101,8 @@ export const en: typeof zh = {
     ["Data Backup", "Export all records, groups, and settings as a ZIP backup file"],
     ["Data Restore", "Import a previously exported ZIP backup; replaces all existing data and restarts the app"],
     ["Clear History", "Clear all non-pinned records; pinned records are not affected"],
-    ["Theme", "Click the moon/sun icon in the title bar to toggle light/dark theme"],
-    ["Language", "Supports Chinese and English"],
+    ["Theme", "Click the theme icon in the title bar to toggle light/dark theme"],
+    ["Language", "Click the language icon in the title bar to choose interface language"],
   ],
 
   aboutTitle: "About TrayClip",

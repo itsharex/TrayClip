@@ -155,29 +155,38 @@ export function SettingsPanel({
           </div>
           <div className="settings-row">
             <label>{t.pauseCapture}</label>
-            <input
-                type="checkbox"
-                checked={settings.pause_capture}
-                onChange={(event) => onSettingsChange({ ...settings, pause_capture: event.target.checked })}
-            />
+            <label className="toggle-switch">
+              <input
+                  type="checkbox"
+                  checked={settings.pause_capture}
+                  onChange={(event) => onSettingsChange({ ...settings, pause_capture: event.target.checked })}
+              />
+              <span className="toggle-switch__track" />
+            </label>
           </div>
           {isWindows ? (
               <div className="settings-row">
                 <label>{t.quickPaste}</label>
-                <input
-                    type="checkbox"
-                    checked={settings.quick_paste}
-                    onChange={(event) => onSettingsChange({ ...settings, quick_paste: event.target.checked })}
-                />
+                <label className="toggle-switch">
+                  <input
+                      type="checkbox"
+                      checked={settings.quick_paste}
+                      onChange={(event) => onSettingsChange({ ...settings, quick_paste: event.target.checked })}
+                  />
+                  <span className="toggle-switch__track" />
+                </label>
               </div>
           ) : null}
           <div className="settings-row">
             <label>{t.urlToast}</label>
-            <input
-                type="checkbox"
-                checked={settings.url_toast}
-                onChange={(event) => onSettingsChange({ ...settings, url_toast: event.target.checked })}
-            />
+            <label className="toggle-switch">
+              <input
+                  type="checkbox"
+                  checked={settings.url_toast}
+                  onChange={(event) => onSettingsChange({ ...settings, url_toast: event.target.checked })}
+              />
+              <span className="toggle-switch__track" />
+            </label>
           </div>
           <div className="settings-stack-row settings-stack-row--danger">
             <label>{t.clearHistory}</label>
@@ -191,11 +200,14 @@ export function SettingsPanel({
           <h3>{t.systemBehavior}</h3>
           <div className="settings-row">
             <label>{t.launchOnStartup}</label>
-            <input
-                type="checkbox"
-                checked={settings.launch_on_startup}
-                onChange={(event) => onSettingsChange({ ...settings, launch_on_startup: event.target.checked })}
-            />
+            <label className="toggle-switch">
+              <input
+                  type="checkbox"
+                  checked={settings.launch_on_startup}
+                  onChange={(event) => onSettingsChange({ ...settings, launch_on_startup: event.target.checked })}
+              />
+              <span className="toggle-switch__track" />
+            </label>
           </div>
           <div className="settings-row">
             <label>{t.closeBehavior}</label>

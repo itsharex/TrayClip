@@ -260,32 +260,6 @@ html.is-mac .app-shell {
   position: relative;
 }
 
-.loading-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  z-index: 10;
-  background: var(--bg-card, #fff);
-}
-
-.loading-spinner {
-  animation: spin 0.8s linear infinite;
-  color: var(--text-tertiary, #999);
-}
-
-.loading-text {
-  font-size: 13px;
-  color: var(--text-tertiary, #999);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .tab-panel {
   flex: 1;
   overflow: hidden;
@@ -329,108 +303,6 @@ html.is-mac .app-shell {
   flex: 1;
   display: flex;
   overflow: hidden;
-}
-
-/* Sidebar */
-.sidebar {
-  flex-shrink: 0;
-  width: 150px;
-  border-right: 1px solid var(--border);
-  background: var(--bg-card);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sidebar-groups {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 0;
-}
-
-.sidebar-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 4px 12px 6px;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  border-radius: 0;
-  padding: 6px 12px;
-  font-size: 12px;
-  background: transparent;
-  color: var(--text-secondary);
-  border-left: 2px solid transparent;
-}
-
-.nav-item:hover {
-  background: var(--primary-weak);
-}
-
-.nav-item.active {
-  background: var(--accent-weak);
-  color: var(--accent);
-  border-left-color: var(--accent);
-  font-weight: 500;
-}
-
-/* Sidebar Footer: group management */
-.sidebar-footer {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  padding: 8px;
-}
-
-.group-creator {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.group-creator input {
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 4px 8px;
-  background: var(--bg-card);
-  font-size: 12px;
-  min-width: 0;
-}
-
-.group-creator input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.group-creator button {
-  flex-shrink: 0;
-  padding: 4px 8px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.group-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-
-.group-actions button {
-  font-size: 11px;
-  padding: 2px 6px;
 }
 
 /* Group Bar */
@@ -548,12 +420,6 @@ html.is-mac .app-shell {
   color: var(--text-tertiary);
 }
 
-.content-toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 /* History List */
 .history-list {
   flex: 1;
@@ -650,26 +516,6 @@ html.is-mac .app-shell {
   -webkit-box-orient: vertical;
 }
 
-.clip-hover-preview img {
-  display: block;
-  max-width: 100%;
-  max-height: 220px;
-  margin: 0 auto;
-  border-radius: var(--radius);
-  object-fit: contain;
-}
-
-.clip-hover-preview__text {
-  margin: 0;
-  max-height: 220px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-  color: var(--primary);
-}
-
 .clip-image-preview {
   max-width: 100%;
   max-height: 120px;
@@ -722,15 +568,29 @@ html.is-mac .app-shell {
   padding: 3px 8px;
 }
 
+.clip-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Group Select Popover */
 .group-select-btn {
-  font-size: 11px;
-  padding: 3px 8px;
-  border: 1px solid var(--border);
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: none;
   border-radius: var(--radius);
-  background: var(--bg-card);
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
   max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -738,8 +598,8 @@ html.is-mac .app-shell {
 }
 
 .group-select-btn:hover {
-  border-color: #ccc;
-  background: var(--bg-muted);
+  background: var(--primary-weak);
+  color: var(--primary);
 }
 
 .group-select-backdrop {
@@ -831,35 +691,26 @@ html.is-mac .app-shell {
   font-weight: 500;
 }
 
-/* Export Panel */
-.export-panel {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.export-panel select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-}
-
 /* Settings Panel */
 .settings-panel {
   flex: 1;
   min-height: 0;
   padding: 14px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .settings-section {
-  margin-bottom: 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
 }
 
 .settings-section h3 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -871,17 +722,34 @@ html.is-mac .app-shell {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
 }
 
-.settings-row:last-child {
-  border-bottom: none;
+.settings-row + .settings-row {
+  border-top: 1px solid var(--border);
 }
 
 .settings-row label {
   font-size: 13px;
   color: var(--primary);
+}
+
+.settings-row select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 24px 4px 8px;
+  background: var(--bg-muted);
+  font-size: 12px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  cursor: pointer;
+}
+
+.settings-row select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .settings-row input[type="number"] {
@@ -890,12 +758,58 @@ html.is-mac .app-shell {
   border-radius: var(--radius);
   padding: 4px 6px;
   text-align: right;
+  background: var(--bg-muted);
+  font-size: 12px;
 }
 
-.settings-row input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--accent);
+.settings-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-switch__track {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.toggle-switch input:checked + .toggle-switch__track {
+  background: var(--accent);
+}
+
+.toggle-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-switch input:checked + .toggle-switch__track::after {
+  transform: translateX(16px);
 }
 
 .settings-stack-row {
@@ -904,7 +818,12 @@ html.is-mac .app-shell {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+}
+
+.settings-stack-row + .settings-row,
+.settings-row + .settings-stack-row,
+.settings-stack-row + .settings-stack-row {
+  border-top: 1px solid var(--border);
 }
 
 .settings-stack-row--danger label {
@@ -924,24 +843,15 @@ html.is-mac .app-shell {
   gap: 6px;
 }
 
-.settings-inline-actions select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-}
-
 .hotkey-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
 }
 
-.hotkey-row:last-child {
-  border-bottom: none;
+.hotkey-row + .hotkey-row {
+  border-top: 1px solid var(--border);
 }
 
 .hotkey-label {
@@ -970,18 +880,6 @@ html.is-mac .app-shell {
   border-color: var(--accent);
   background: var(--accent-weak);
   color: var(--accent);
-}
-
-.permission-card {
-  padding: 10px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-muted);
-  border: 1px solid var(--border);
-}
-
-.permission-card p {
-  margin: 0 0 6px;
-  font-size: 12px;
 }
 
 /* About Panel */
