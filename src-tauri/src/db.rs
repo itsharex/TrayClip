@@ -401,17 +401,16 @@ pub fn cleanup_overflow(conn: &Connection, retention_limit: i64) -> anyhow::Resu
         return Ok(Vec::new());
     }
 
-    let mut statement = conn.prepare("SELECT id, image_path FROM clips WHERE is_pinned = 0 ORDER BY position_updated_at ASC LIMIT ?1")?;
-    let rows = statement.query_map([overflow], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?)))?;
-    let victims = rows.collect::<Result<Vec<_>, _>>()?;
+    let mut statement = conn.prepare("SELECT image_path FROM clips WHERE is_pinned = 0 ORDER BY position_updated_at ASC LIMIT ?1")?;
+    let image_paths: Vec<String> = statement
+        .query_map([overflow], |row| row.get(0))?
+        .filter_map(|r| r.ok())
+        .collect();
 
-    let mut image_paths = Vec::new();
-    for (id, image_path) in victims {
-        if let Some(path) = image_path {
-            image_paths.push(path);
-        }
-        conn.execute("DELETE FROM clips WHERE id = ?1", [id])?;
-    }
+    conn.execute(
+        "DELETE FROM clips WHERE id IN (SELECT id FROM clips WHERE is_pinned = 0 ORDER BY position_updated_at ASC LIMIT ?1)",
+        [overflow],
+    )?;
 
     Ok(image_paths)
 }

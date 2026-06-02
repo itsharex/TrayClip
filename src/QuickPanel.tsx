@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getBootstrap, hideQuickPanel, setDragging, pinToggle, recopyClip, moveClipToGroup, deleteClip } from "./lib/api";
+import { FALLBACK_BOOTSTRAP } from "./lib/constants";
 import type { AppSettings, BootstrapPayload } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
+import { useNotice } from "./hooks/useNotice";
 import { HistoryList } from "./components/HistoryList";
 
 interface ConfirmState {
@@ -11,30 +13,9 @@ interface ConfirmState {
   onConfirm: () => Promise<void>;
 }
 
-const fallback: BootstrapPayload = {
-  clips: { items: [], total: 0, has_more: false },
-  groups: [],
-  settings: {
-    retention_limit: 200,
-    launch_on_startup: false,
-    pause_capture: false,
-    locale: "zh-CN",
-    accessibility_prompted: false,
-    close_behavior: "hide",
-    panel_position: "center",
-    quick_paste: false,
-    url_toast: false,
-  },
-  hotkeys: [],
-  permissions: {
-    accessibility_granted: false,
-    accessibility_required_for_paste: true,
-  },
-};
-
 export default function QuickPanel() {
   const { t } = useTranslation();
-  const [state, setState] = useState<BootstrapPayload>(fallback);
+  const [state, setState] = useState<BootstrapPayload>(FALLBACK_BOOTSTRAP);
   const [search, setSearch] = useState("");
   const [autoSelect, setAutoSelect] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -42,14 +23,7 @@ export default function QuickPanel() {
 
   useEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [search]);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const noticeTimerRef = useRef<number | null>(null);
-
-  const showNotice = useCallback((message: string) => {
-    setNotice(message);
-    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
-    noticeTimerRef.current = window.setTimeout(() => { setNotice(null); noticeTimerRef.current = null; }, 1500);
-  }, []);
+  const { notice, showNotice } = useNotice();
 
   const load = useCallback(async () => {
     const payload = await getBootstrap();
@@ -90,7 +64,6 @@ export default function QuickPanel() {
     }).then((fn) => { unlistenSettings = fn; });
 
     return () => {
-      if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
       unlistenClips?.();
       unlistenFocus?.();
       unlistenTheme?.();

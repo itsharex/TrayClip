@@ -1,35 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
+import { FALLBACK_BOOTSTRAP } from "./lib/constants";
 import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
 import { useTranslation } from "./lib/i18n";
 import { useAppVersion } from "./hooks/useAppVersion";
+import { useNotice } from "./hooks/useNotice";
 import { HistoryList } from "./components/HistoryList";
 import { SettingsPanel } from "./components/SettingsPanel";
-
-const fallback: BootstrapPayload = {
-  clips: { items: [], total: 0, has_more: false },
-  groups: [],
-  settings: {
-    retention_limit: 200,
-    launch_on_startup: false,
-    pause_capture: false,
-    locale: "zh-CN",
-    accessibility_prompted: false,
-    close_behavior: "hide",
-    panel_position: "center",
-    quick_paste: false,
-    url_toast: false,
-  },
-  hotkeys: [],
-  permissions: {
-    accessibility_granted: false,
-    accessibility_required_for_paste: true,
-  },
-};
 
 type TabKey = "clips" | "settings" | "help" | "about";
 
@@ -102,7 +83,7 @@ function AboutPanel() {
 
 export default function App() {
   const { t, locale, setLocale } = useTranslation();
-  const [state, setState] = useState<BootstrapPayload>(fallback);
+  const [state, setState] = useState<BootstrapPayload>(FALLBACK_BOOTSTRAP);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => { document.querySelector(".history-list")?.scrollTo(0, 0); }, [search]);
@@ -115,25 +96,13 @@ export default function App() {
     return (localStorage.getItem("trayclip-theme") as "light" | "dark") || "light";
   });
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { notice, showNotice } = useNotice();
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const noticeTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(state.settings);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const showNotice = useCallback((message: string) => {
-    setNotice(message);
-    if (noticeTimerRef.current !== null) {
-      window.clearTimeout(noticeTimerRef.current);
-    }
-    noticeTimerRef.current = window.setTimeout(() => {
-      setNotice(null);
-      noticeTimerRef.current = null;
-    }, 1500);
-  }, []);
 
   const focusSearch = useCallback((selectText = false) => {
     setActiveTab("clips");
@@ -230,9 +199,6 @@ export default function App() {
     });
 
     return () => {
-      if (noticeTimerRef.current !== null) {
-        window.clearTimeout(noticeTimerRef.current);
-      }
       unlistenClips?.();
       unlistenFocusSearch?.();
       unlistenClose?.();

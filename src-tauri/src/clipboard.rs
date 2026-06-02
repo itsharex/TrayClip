@@ -105,9 +105,8 @@ fn read_clipboard_with_clipboard(paths: &AppPaths, clipboard: &mut Clipboard) ->
 
         let (content_type, plain_text, file_paths) = classify_text(&text);
         let is_truncated = plain_text.as_ref().is_some_and(|value| value.len() > 1024 * 1024);
-        let normalized_text = plain_text.clone().unwrap_or(text);
         let truncated_text = plain_text.map(|value| truncate_to_1mb(&value));
-        let summary = summarize_text(truncated_text.as_deref().unwrap_or(&normalized_text));
+        let summary = summarize_text(truncated_text.as_deref().unwrap_or(&text));
         let content_hash = db::compute_hash(&content_type, &truncated_text, &None, &file_paths, &summary);
         return Ok(Some((
             content_hash.clone(),
@@ -162,9 +161,8 @@ fn peek_signature_with_clipboard(_paths: &AppPaths, clipboard: &mut Clipboard) -
             return Ok(None);
         }
         let (content_type, plain_text, file_paths) = classify_text(&text);
-        let normalized_text = plain_text.clone().unwrap_or(text);
         let truncated_text = plain_text.map(|value| truncate_to_1mb(&value));
-        let summary = summarize_text(truncated_text.as_deref().unwrap_or(&normalized_text));
+        let summary = summarize_text(truncated_text.as_deref().unwrap_or(&text));
         let content_hash = db::compute_hash(&content_type, &truncated_text, &None, &file_paths, &summary);
         return Ok(Some(content_hash));
     }
@@ -185,10 +183,7 @@ pub fn write_clipboard_with_state(record: &ClipRecord, clipboard: &mut Clipboard
 
 fn write_clipboard_with_clipboard(record: &ClipRecord, clipboard: &mut Clipboard) -> anyhow::Result<()> {
     match record.content_type {
-        ClipContentType::PlainText => {
-            clipboard.set_text(record.plain_text.clone().unwrap_or_else(|| record.summary.clone()))?;
-        }
-        ClipContentType::RichText => {
+        ClipContentType::PlainText | ClipContentType::RichText => {
             clipboard.set_text(record.plain_text.clone().unwrap_or_else(|| record.summary.clone()))?;
         }
         ClipContentType::FilePaths => {
@@ -235,23 +230,23 @@ fn classify_text(text: &str) -> (ClipContentType, Option<String>, Vec<String>) {
 }
 
 fn truncate_to_1mb(text: &str) -> String {
-    let mut total = 0usize;
-    let mut result = String::new();
-    for ch in text.chars() {
-        let len = ch.len_utf8();
-        if total + len > 1024 * 1024 {
-            break;
-        }
-        total += len;
-        result.push(ch);
+    const LIMIT: usize = 1024 * 1024;
+    if text.len() <= LIMIT {
+        return text.to_string();
     }
-    result
+    // Find the last valid char boundary at or before LIMIT
+    let mut end = LIMIT;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text[..end].to_string()
 }
 
 fn summarize_text(text: &str) -> String {
     let trimmed = text.replace(['\r', '\n'], " ");
-    let mut summary = trimmed.chars().take(120).collect::<String>();
-    if trimmed.chars().count() > 120 {
+    let mut chars = trimmed.chars();
+    let mut summary: String = chars.by_ref().take(120).collect();
+    if chars.next().is_some() {
         summary.push_str("...");
     }
     summary

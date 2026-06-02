@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { AppSettings, HotkeyActionKey, HotkeySetting } from "../lib/types";
 import { useTranslation, type Locale } from "../lib/i18n";
 
@@ -58,7 +58,6 @@ function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecorderProps
   const { t } = useTranslation();
   const [recording, setRecording] = useState(false);
   const [preview, setPreview] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!recording) return;
@@ -99,7 +98,6 @@ function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecorderProps
 
   return (
       <div
-          ref={ref}
           className={`hotkey-value${recording ? " recording" : ""}`}
           tabIndex={0}
           onClick={() => {
