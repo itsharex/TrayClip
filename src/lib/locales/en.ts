@@ -149,5 +149,30 @@ export const en: typeof zh = {
 
   quickPanelSearch: "Search clipboard...",
 
+  // AI Enhancement
+  enableAi: "Enable AI Enhancement",
+  aiEnhancement: "AI Enhancement",
+  llmApiUrl: "API URL",
+  llmApiUrlHint: "Must be OpenAI-compatible API",
+  llmApiKey: "API Key",
+  llmModel: "Model",
+  aiTranslate: "AI Translate",
+  extractKeywords: "AI Extract Keywords",
+
+  aiSummarize: "AI Summarize",
+  aiProcessing: "Processing...",
+  aiResult: "AI Result",
+  copyResult: "Copy",
+  aiFailed: "AI request failed, please check your settings",
+  aiDisclaimer: "AI-generated content — please verify before use",
+
+  // Translate
+  translate: "Translate",
+  translateTarget: "Target language",
+  translateBtn: "Translate",
+  translating: "Translating...",
+  translateFailed: "Translation failed",
+  bingSource: "Translated by Bing",
+
   jsonCopy: "Copy as formatted JSON",
 };

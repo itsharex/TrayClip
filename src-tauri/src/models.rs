@@ -46,6 +46,16 @@ pub struct AppSettings {
     pub panel_position: String,
     pub quick_paste: bool,
     pub url_toast: bool,
+    #[serde(default)]
+    pub llm_enabled: bool,
+    #[serde(default)]
+    pub llm_api_url: String,
+    #[serde(default)]
+    pub llm_api_key: String,
+    #[serde(default)]
+    pub llm_model: String,
+    #[serde(default)]
+    pub llm_ai_translate: bool,
 }
 
 impl Default for AppSettings {
@@ -60,6 +70,11 @@ impl Default for AppSettings {
             panel_position: "center".into(),
             quick_paste: false,
             url_toast: false,
+            llm_enabled: false,
+            llm_api_url: String::new(),
+            llm_api_key: String::new(),
+            llm_model: String::new(),
+            llm_ai_translate: false,
         }
     }
 }

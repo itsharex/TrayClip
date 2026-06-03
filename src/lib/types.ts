@@ -34,6 +34,11 @@ export interface AppSettings {
   panel_position: "center" | "follow_mouse";
   quick_paste: boolean;
   url_toast: boolean;
+  llm_enabled: boolean;
+  llm_api_url: string;
+  llm_api_key: string;
+  llm_model: string;
+  llm_ai_translate: boolean;
 }
 
 export type HotkeyActionKey = "open_main_window" | "open_quick_panel";

@@ -155,6 +155,31 @@ export const zh = {
   restoreDefault: "恢复默认",
   pressHotkey: "按下快捷键...",
 
+  // AI 增强
+  enableAi: "启用 AI 增强",
+  aiEnhancement: "AI 增强",
+  llmApiUrl: "API 地址",
+  llmApiUrlHint: "需兼容 OpenAI API 格式",
+  llmApiKey: "API Key",
+  llmModel: "模型名称",
+  aiTranslate: "AI 翻译",
+  extractKeywords: "AI提取关键词",
+
+  aiSummarize: "AI摘要",
+  aiProcessing: "AI 处理中...",
+  aiResult: "AI 结果",
+  copyResult: "复制",
+  aiFailed: "AI 请求失败，请检查配置",
+  aiDisclaimer: "以上内容由 AI 生成，请仔细甄别后使用",
+
+  // 翻译
+  translate: "翻译",
+  translateTarget: "目标语言",
+  translateBtn: "翻译",
+  translating: "翻译中...",
+  translateFailed: "翻译失败",
+  bingSource: "翻译来源：Bing 翻译",
+
   // 右键菜单
   jsonCopy: "JSON 格式化复制",
 

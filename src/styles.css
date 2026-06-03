@@ -762,9 +762,21 @@ html.is-mac .app-shell {
   font-size: 12px;
 }
 
-.settings-row input[type="number"]:focus {
+.settings-row input[type="number"]:focus,
+.settings-row input[type="text"]:focus,
+.settings-row input[type="password"]:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.settings-row input[type="text"],
+.settings-row input[type="password"] {
+  width: 180px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  background: var(--bg-muted);
+  font-size: 12px;
 }
 
 /* Toggle switch */
@@ -987,6 +999,129 @@ html.is-mac .app-shell {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+}
+
+/* LLM Config disabled state */
+
+.llm-config--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* LLM Result Dialog */
+.llm-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.llm-dialog__header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.llm-dialog__loading {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  padding: 16px 0;
+  text-align: center;
+}
+
+.llm-dialog__error {
+  font-size: 13px;
+  color: var(--danger);
+  padding: 16px 0;
+}
+
+.llm-dialog__content {
+  margin: 0;
+  padding: 10px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: inherit;
+}
+
+.llm-dialog__disclaimer {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 10px;
+  text-align: center;
+}
+
+.llm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.llm-dialog__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.llm-dialog__btn:hover {
+  background: var(--bg-muted);
+}
+
+.llm-dialog__btn--close:hover {
+  background: var(--danger-weak);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.llm-dialog__btn--copy {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.llm-dialog__btn--copy:hover {
+  background: var(--primary-hover);
+}
+
+/* Translate Dialog */
+.translate-dialog__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.translate-dialog__label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.translate-dialog__select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
 /* Empty State */

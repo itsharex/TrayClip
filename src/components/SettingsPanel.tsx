@@ -197,6 +197,66 @@ export function SettingsPanel({
         </div>
 
         <div className="settings-section">
+          <h3>{t.aiEnhancement}</h3>
+          <div className="settings-row">
+            <label>{t.enableAi}</label>
+            <label className="toggle-switch">
+              <input
+                  type="checkbox"
+                  checked={settings.llm_enabled}
+                  onChange={(event) => onSettingsChange({ ...settings, llm_enabled: event.target.checked })}
+              />
+              <span className="toggle-switch__track" />
+            </label>
+          </div>
+          <div className={settings.llm_enabled ? "llm-config" : "llm-config llm-config--disabled"}>
+            <div className="settings-row">
+              <label>{t.llmApiUrl}</label>
+              <input
+                  type="text"
+                  placeholder="https://api.openai.com/v1"
+                  title={t.llmApiUrlHint}
+                  disabled={!settings.llm_enabled}
+                  value={settings.llm_api_url}
+                  onChange={(e) => onSettingsChange({ ...settings, llm_api_url: e.target.value })}
+              />
+            </div>
+            <div className="settings-row">
+              <label>{t.llmApiKey}</label>
+              <input
+                  type="password"
+                  placeholder="sk-..."
+                  disabled={!settings.llm_enabled}
+                  value={settings.llm_api_key}
+                  onChange={(e) => onSettingsChange({ ...settings, llm_api_key: e.target.value })}
+              />
+            </div>
+            <div className="settings-row">
+              <label>{t.llmModel}</label>
+              <input
+                  type="text"
+                  placeholder="gpt-4o-mini"
+                  disabled={!settings.llm_enabled}
+                  value={settings.llm_model}
+                  onChange={(e) => onSettingsChange({ ...settings, llm_model: e.target.value })}
+              />
+            </div>
+            <div className="settings-row">
+              <label>{t.aiTranslate}</label>
+              <label className="toggle-switch">
+                <input
+                    type="checkbox"
+                    disabled={!settings.llm_enabled}
+                    checked={settings.llm_ai_translate}
+                    onChange={(event) => onSettingsChange({ ...settings, llm_ai_translate: event.target.checked })}
+                />
+                <span className="toggle-switch__track" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
           <h3>{t.systemBehavior}</h3>
           <div className="settings-row">
             <label>{t.launchOnStartup}</label>

@@ -459,6 +459,101 @@ pub fn show_url_toast(app: AppHandle, url: String) -> Result<(), String> {
     Ok(())
 }
 
+// --- Bing Translate ---
+
+const BING_AUTH_URL: &str = "https://edge.microsoft.com/translate/auth";
+const BING_TRANSLATE_URL: &str = "https://api-edge.cognitive.microsofttranslator.com/translate";
+
+const BING_COMMON_HEADERS: &[(&str, &str)] = &[
+    ("Accept", "application/json, text/plain, */*"),
+    ("Accept-Language", "zh-CN"),
+    ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) time-translate/0.9.15 Chrome/104.0.5112.124 Electron/20.3.8 Safari/537.36"),
+    ("sec-ch-ua", "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"104\""),
+    ("sec-ch-ua-mobile", "?0"),
+    ("sec-ch-ua-platform", "\"Windows\""),
+    ("Sec-Fetch-Site", "cross-site"),
+    ("Sec-Fetch-Mode", "cors"),
+    ("Sec-Fetch-Dest", "empty"),
+];
+
+struct BingTokenCache {
+    token: String,
+    expiry: std::time::Instant,
+}
+
+static BING_TOKEN: std::sync::OnceLock<std::sync::Mutex<BingTokenCache>> = std::sync::OnceLock::new();
+
+async fn get_bing_token(client: &reqwest::Client) -> Result<String, String> {
+    let cache = BING_TOKEN.get_or_init(|| std::sync::Mutex::new(BingTokenCache {
+        token: String::new(),
+        expiry: std::time::Instant::now(),
+    }));
+    {
+        let cached = cache.lock().unwrap();
+        if !cached.token.is_empty() && std::time::Instant::now() < cached.expiry {
+            return Ok(cached.token.clone());
+        }
+    }
+
+    let mut req = client.get(BING_AUTH_URL);
+    for (k, v) in BING_COMMON_HEADERS {
+        req = req.header(*k, *v);
+    }
+    let resp = req.send().await.map_err(|e| format!("Bing auth request failed: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("Bing auth failed: {}", resp.status()));
+    }
+    let token = resp.text().await.map_err(|e| format!("Bing auth read failed: {}", e))?.trim().to_string();
+    if token.is_empty() {
+        return Err("Bing auth returned empty token".into());
+    }
+
+    let mut cached = cache.lock().unwrap();
+    *cached = BingTokenCache {
+        token: token.clone(),
+        expiry: std::time::Instant::now() + std::time::Duration::from_secs(9 * 60),
+    };
+    Ok(token)
+}
+
+#[tauri::command]
+pub async fn bing_translate(text: String, from: String, to: String) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let token = get_bing_token(&client).await?;
+
+    let mut params = vec![
+        ("to", to),
+        ("api-version", "3.0".into()),
+        ("includeSentenceLength", "true".into()),
+    ];
+    if !from.is_empty() && from != "auto" {
+        params.push(("from", from));
+    }
+
+    let mut req = client.post(BING_TRANSLATE_URL).query(&params);
+    for (k, v) in BING_COMMON_HEADERS {
+        req = req.header(*k, *v);
+    }
+    let resp = req
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&serde_json::json!([{"Text": text}]))
+        .send()
+        .await
+        .map_err(|e| format!("Bing translate request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Bing translate failed: {}", resp.status()));
+    }
+
+    let data: serde_json::Value = resp.json().await.map_err(|e| format!("Bing translate parse failed: {}", e))?;
+    let translated = data[0]["translations"][0]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    Ok(translated)
+}
+
 const GITHUB_REPO: &str = "Heyiki/TrayClip";
 
 #[derive(serde::Serialize)]

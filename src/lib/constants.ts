@@ -13,6 +13,11 @@ export const FALLBACK_BOOTSTRAP: BootstrapPayload = {
         panel_position: "center",
         quick_paste: false,
         url_toast: false,
+        llm_enabled: false,
+        llm_api_url: "",
+        llm_api_key: "",
+        llm_model: "",
+        llm_ai_translate: false,
     },
     hotkeys: [],
     permissions: {

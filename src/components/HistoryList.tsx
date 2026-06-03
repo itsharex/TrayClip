@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Copy, Pin, PinOff, Tag, Trash2 } from "lucide-react";
-import type { ClipGroup, ClipRecord } from "../lib/types";
+import type { AppSettings, ClipGroup, ClipRecord } from "../lib/types";
 import { useTranslation } from "../lib/i18n";
 import { useImagePreview } from "../hooks/useImagePreview";
 import { extractUrl, isJson } from "../lib/utils";
+import { extractKeywords, summarizeText } from "../lib/llm";
 import ContextMenu, { type ContextMenuItem } from "./ContextMenu";
+import LLMResultDialog from "./LLMResultDialog";
+import TranslateDialog from "./TranslateDialog";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".tiff", ".tif", ".svg"]);
 
@@ -61,13 +64,14 @@ interface ClipCardProps {
   clip: ClipRecord;
   selected: boolean;
   groups: ClipGroup[];
+  settings: AppSettings;
   onRecopy: (clipId: number) => void;
   onPinToggle: (clipId: number, pinned: boolean) => void;
   onMoveGroup: (clipId: number, groupId: number | null) => void;
   onDelete: (clipId: number) => void;
 }
 
-function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, onDelete }: ClipCardProps) {
+function ClipCard({ clip, selected, groups, settings, onRecopy, onPinToggle, onMoveGroup, onDelete }: ClipCardProps) {
   const { t } = useTranslation();
   const isFilePaths = clip.content_type === "file_paths";
   const imagePaths = isFilePaths ? clip.file_paths.filter(isImagePath) : [];
@@ -77,6 +81,15 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
   const handleBodyDoubleClick = () => onRecopy(clip.id);
 
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [translateClipId, setTranslateClipId] = useState<number | null>(null);
+  const [llmState, setLlmState] = useState<{ loading: boolean; action: string; result: string | null; error: string | null }>({ loading: false, action: "", result: null, error: null });
+  const llmAbortRef = useRef<AbortController | null>(null);
+
+  const closeLlmDialog = useCallback(() => {
+    llmAbortRef.current?.abort();
+    llmAbortRef.current = null;
+    setLlmState({ loading: false, action: "", result: null, error: null });
+  }, []);
 
   useEffect(() => {
     const close = () => setContextMenuPos(null);
@@ -101,9 +114,54 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
   const url = clip.plain_text ? extractUrl(clip.plain_text) : null;
   const json = clip.plain_text ? isJson(clip.plain_text) : false;
 
+  const llmEnabled = !!(settings.llm_enabled && settings.llm_api_url && settings.llm_api_key && settings.llm_model);
+  const textContent = clip.plain_text?.trim();
+
+  const llmConfig = { apiUrl: settings.llm_api_url, apiKey: settings.llm_api_key, model: settings.llm_model };
+
+  const startLlm = useCallback((action: string) => {
+    llmAbortRef.current?.abort();
+    const controller = new AbortController();
+    llmAbortRef.current = controller;
+    setLlmState({ loading: true, action, result: null, error: null });
+    return controller.signal;
+  }, []);
+
+  const handleExtractKeywords = useCallback(async () => {
+    if (!textContent) return;
+    const signal = startLlm(t.extractKeywords);
+    try {
+      const keywords = await extractKeywords(llmConfig, textContent, signal);
+      setLlmState({ loading: false, action: "", result: keywords, error: null });
+    } catch (e) {
+      if (signal.aborted) return;
+      setLlmState({ loading: false, action: "", result: null, error: t.aiFailed });
+    }
+  }, [textContent, llmConfig, t.extractKeywords, t.aiFailed, startLlm]);
+
+  const handleSummarize = useCallback(async () => {
+    if (!textContent) return;
+    const signal = startLlm(t.aiSummarize);
+    try {
+      const summary = await summarizeText(llmConfig, textContent, signal);
+      setLlmState({ loading: false, action: "", result: summary, error: null });
+    } catch (e) {
+      if (signal.aborted) return;
+      setLlmState({ loading: false, action: "", result: null, error: t.aiFailed });
+    }
+  }, [textContent, llmConfig, t.aiSummarize, t.aiFailed, startLlm]);
+
   const contextMenuItems: ContextMenuItem[] = [
     ...(url ? [{ label: t.openLink, onClick: () => { void openUrl(url); } }] : []),
     { label: json ? t.jsonCopy : t.copy, onClick: () => void handleJsonCopy() },
+    ...(textContent ? [
+      { label: "", separator: true as const },
+      { label: t.translate, onClick: () => setTranslateClipId(clip.id) },
+    ] : []),
+    ...(llmEnabled && textContent ? [
+      { label: t.extractKeywords, onClick: () => void handleExtractKeywords() },
+      { label: t.aiSummarize, onClick: () => void handleSummarize() },
+    ] : []),
   ];
 
   return (
@@ -142,6 +200,29 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
           <button className="ghost icon-btn" title={clip.is_pinned ? t.unpin : t.pin} onClick={() => onPinToggle(clip.id, !clip.is_pinned)}>{clip.is_pinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
           <button className="ghost danger icon-btn" title={t.delete} onClick={() => onDelete(clip.id)}><Trash2 size={16} /></button>
         </div>
+
+        {llmState.loading || llmState.result || llmState.error ? (
+            <LLMResultDialog
+                loading={llmState.loading}
+                action={llmState.action}
+                result={llmState.result}
+                error={llmState.error}
+                onCopy={() => {
+                  if (llmState.result) void navigator.clipboard.writeText(llmState.result);
+                  closeLlmDialog();
+                }}
+                onClose={closeLlmDialog}
+            />
+        ) : null}
+        {translateClipId === clip.id && textContent ? (
+            <TranslateDialog
+                text={textContent}
+                llmConfig={llmConfig}
+                llmEnabled={llmEnabled}
+                aiTranslate={settings.llm_ai_translate}
+                onClose={() => setTranslateClipId(null)}
+            />
+        ) : null}
       </article>
   );
 
@@ -149,6 +230,7 @@ function ClipCard({ clip, selected, groups, onRecopy, onPinToggle, onMoveGroup, 
 interface HistoryListProps {
   clips: ClipRecord[];
   groups: ClipGroup[];
+  settings: AppSettings;
   autoSelect?: boolean;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
   onAutoSelectDone?: () => void;
@@ -158,7 +240,7 @@ interface HistoryListProps {
   onDelete: (clipId: number) => void;
 }
 
-export function HistoryList({ clips, groups, autoSelect, scrollRef, onAutoSelectDone, onRecopy, onPinToggle, onMoveGroup, onDelete }: HistoryListProps) {
+export function HistoryList({ clips, groups, settings, autoSelect, scrollRef, onAutoSelectDone, onRecopy, onPinToggle, onMoveGroup, onDelete }: HistoryListProps) {
   const { t } = useTranslation();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const internalRef = useRef<HTMLDivElement>(null);
@@ -206,5 +288,5 @@ export function HistoryList({ clips, groups, autoSelect, scrollRef, onAutoSelect
     return <div className="history-list"><div className="empty-state">{t.emptyRecords}</div></div>;
   }
 
-  return <div className="history-list" ref={listRef}>{clips.map((clip, index) => <ClipCard key={clip.id} clip={clip} selected={index === selectedIndex} groups={groups} onRecopy={onRecopy} onPinToggle={onPinToggle} onMoveGroup={onMoveGroup} onDelete={onDelete} />)}</div>;
+  return <div className="history-list" ref={listRef}>{clips.map((clip, index) => <ClipCard key={clip.id} clip={clip} selected={index === selectedIndex} groups={groups} settings={settings} onRecopy={onRecopy} onPinToggle={onPinToggle} onMoveGroup={onMoveGroup} onDelete={onDelete} />)}</div>;
 }

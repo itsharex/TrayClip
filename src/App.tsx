@@ -508,6 +508,7 @@ export default function App() {
                   <HistoryList
                       clips={filteredClips}
                       groups={state.groups}
+                      settings={state.settings}
                       scrollRef={scrollRef}
                       onRecopy={handleRecopy}
                       onPinToggle={async (clipId, pinned) => {

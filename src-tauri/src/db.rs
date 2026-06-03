@@ -112,9 +112,17 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
         let _ = conn.execute("ALTER TABLE app_settings ADD COLUMN url_toast INTEGER NOT NULL DEFAULT 0", []);
     }
 
+    // Migration: add llm_config column if missing
+    let has_llm_config: bool = conn
+        .prepare("SELECT llm_config FROM app_settings LIMIT 0")
+        .is_ok();
+    if !has_llm_config {
+        let _ = conn.execute("ALTER TABLE app_settings ADD COLUMN llm_config TEXT NOT NULL DEFAULT '{}'", []);
+    }
+
     conn.execute(
-        "INSERT OR IGNORE INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast)
-         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center', 0, 0)",
+        "INSERT OR IGNORE INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast, llm_config)
+         VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center', 0, 0, '{}')",
         [],
     )?;
 
@@ -143,11 +151,27 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+struct LlmConfigStore {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    api_url: String,
+    #[serde(default)]
+    api_key: String,
+    #[serde(default)]
+    model: String,
+    #[serde(default)]
+    ai_translate: bool,
+}
+
 pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
     conn.query_row(
-        "SELECT retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast FROM app_settings WHERE id = 1",
+        "SELECT retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast, llm_config FROM app_settings WHERE id = 1",
         [],
         |row| {
+            let llm_json: String = row.get(9)?;
+            let llm: LlmConfigStore = serde_json::from_str(&llm_json).unwrap_or_default();
             Ok(AppSettings {
                 retention_limit: row.get(0)?,
                 launch_on_startup: row.get::<_, i64>(1)? == 1,
@@ -158,15 +182,28 @@ pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
                 panel_position: row.get(6)?,
                 quick_paste: row.get::<_, i64>(7)? == 1,
                 url_toast: row.get::<_, i64>(8)? == 1,
+                llm_enabled: llm.enabled,
+                llm_api_url: llm.api_url,
+                llm_api_key: llm.api_key,
+                llm_model: llm.model,
+                llm_ai_translate: llm.ai_translate,
             })
         },
     ).context("failed to load app settings")
 }
 
 pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Result<AppSettings> {
+    let llm_config = LlmConfigStore {
+        enabled: settings.llm_enabled,
+        api_url: settings.llm_api_url.clone(),
+        api_key: settings.llm_api_key.clone(),
+        model: settings.llm_model.clone(),
+        ai_translate: settings.llm_ai_translate,
+    };
+    let llm_json = serde_json::to_string(&llm_config)?;
     conn.execute(
-        "UPDATE app_settings SET retention_limit = ?1, launch_on_startup = ?2, pause_capture = ?3, locale = ?4, accessibility_prompted = ?5, close_behavior = ?6, panel_position = ?7, quick_paste = ?8, url_toast = ?9 WHERE id = 1",
-        params![settings.retention_limit, settings.launch_on_startup as i64, settings.pause_capture as i64, settings.locale, settings.accessibility_prompted as i64, settings.close_behavior, settings.panel_position, settings.quick_paste as i64, settings.url_toast as i64],
+        "UPDATE app_settings SET retention_limit = ?1, launch_on_startup = ?2, pause_capture = ?3, locale = ?4, accessibility_prompted = ?5, close_behavior = ?6, panel_position = ?7, quick_paste = ?8, url_toast = ?9, llm_config = ?10 WHERE id = 1",
+        params![settings.retention_limit, settings.launch_on_startup as i64, settings.pause_capture as i64, settings.locale, settings.accessibility_prompted as i64, settings.close_behavior, settings.panel_position, settings.quick_paste as i64, settings.url_toast as i64, llm_json],
     )?;
     load_settings(conn)
 }

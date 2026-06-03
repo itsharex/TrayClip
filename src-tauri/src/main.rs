@@ -377,7 +377,8 @@ fn main() {
             commands::reload_global_shortcuts,
             commands::backup_data,
             commands::restore_backup,
-            commands::show_url_toast
+            commands::show_url_toast,
+            commands::bing_translate
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");

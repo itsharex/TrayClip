@@ -43,3 +43,5 @@ export const getInstallerType = () => invoke<string>("get_installer_type");
 export const backupData = (savePath: string) => invoke<string>("backup_data", { savePath });
 
 export const restoreBackup = (zipPath: string) => invoke<void>("restore_backup", { zipPath });
+
+export const bingTranslate = (text: string, from: string, to: string) => invoke<string>("bing_translate", { text, from, to });

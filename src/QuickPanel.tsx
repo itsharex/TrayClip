@@ -133,6 +133,7 @@ export default function QuickPanel() {
           <HistoryList
               clips={filteredClips}
               groups={state.groups}
+              settings={state.settings}
               autoSelect={autoSelect}
               onAutoSelectDone={() => setAutoSelect(false)}
               onRecopy={handleRecopy}
