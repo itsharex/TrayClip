@@ -6,7 +6,7 @@ use tauri::Position;
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
+use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, ConfigPayload, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
 
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
@@ -15,13 +15,13 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
 
-fn runtime_error(error: anyhow::Error) -> String {
+fn runtime_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
 fn recopy_clip_impl(state: &State<'_, AppState>, clip_id: i64) -> Result<(), String> {
     let record = {
-        let conn = state.conn.lock();
+        let conn = state.pool.get().map_err(runtime_error)?;
         let record = db::get_clip_by_id(&conn, clip_id).map_err(runtime_error)?;
         db::mark_clip_used(&conn, clip_id).map_err(runtime_error)?;
         record
@@ -38,9 +38,9 @@ fn recopy_clip_impl(state: &State<'_, AppState>, clip_id: i64) -> Result<(), Str
 }
 
 #[tauri::command]
-pub fn get_bootstrap(state: State<'_, AppState>) -> Result<BootstrapPayload, String> {
-    let conn = state.conn.lock();
-    let clips = db::list_clips(&conn, &ListClipsRequest { page: 1, page_size: 100, keyword: None, group_id: None, pinned_only: Some(false) }).map_err(runtime_error)?;
+pub fn get_bootstrap(state: State<'_, AppState>, group_id: Option<i64>) -> Result<BootstrapPayload, String> {
+    let conn = state.pool.get().map_err(runtime_error)?;
+    let clips = db::list_clips(&conn, &ListClipsRequest { page: 1, page_size: 100, keyword: None, group_id, pinned_only: Some(false) }).map_err(runtime_error)?;
     let groups = db::list_groups(&conn).map_err(runtime_error)?;
     let settings = db::load_settings(&conn).map_err(runtime_error)?;
     let hotkeys = db::list_hotkeys(&conn).map_err(runtime_error)?;
@@ -50,14 +50,23 @@ pub fn get_bootstrap(state: State<'_, AppState>) -> Result<BootstrapPayload, Str
 }
 
 #[tauri::command]
+pub fn get_config(state: State<'_, AppState>) -> Result<ConfigPayload, String> {
+    let conn = state.pool.get().map_err(runtime_error)?;
+    let settings = db::load_settings(&conn).map_err(runtime_error)?;
+    let hotkeys = db::list_hotkeys(&conn).map_err(runtime_error)?;
+    let permissions = state.permissions.read().clone();
+    Ok(ConfigPayload { settings, hotkeys, permissions })
+}
+
+#[tauri::command]
 pub fn list_clips(state: State<'_, AppState>, payload: ListClipsRequest) -> Result<ListClipsResponse, String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::list_clips(&conn, &payload).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn list_groups(state: State<'_, AppState>) -> Result<Vec<ClipGroup>, String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::list_groups(&conn).map_err(runtime_error)
 }
 
@@ -68,32 +77,32 @@ pub fn recopy_clip(state: State<'_, AppState>, clip_id: i64) -> Result<(), Strin
 
 #[tauri::command]
 pub fn pin_toggle(state: State<'_, AppState>, clip_id: i64, pinned: bool) -> Result<(), String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::pin_toggle(&conn, clip_id, pinned).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn save_group(state: State<'_, AppState>, group_id: Option<i64>, group_name: String) -> Result<ClipGroup, String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::save_group(&conn, group_id, group_name.trim()).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn delete_group(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::delete_group(&conn, group_id).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn move_clip_to_group(state: State<'_, AppState>, clip_id: i64, group_id: Option<i64>) -> Result<(), String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::move_clip_to_group(&conn, clip_id, group_id).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn delete_clip(state: State<'_, AppState>, app: AppHandle, clip_id: i64) -> Result<(), String> {
     let image_path = {
-        let conn = state.conn.lock();
+        let conn = state.pool.get().map_err(runtime_error)?;
         db::delete_clip(&conn, clip_id).map_err(runtime_error)?
     };
     if let Some(path) = image_path {
@@ -106,7 +115,7 @@ pub fn delete_clip(state: State<'_, AppState>, app: AppHandle, clip_id: i64) -> 
 #[tauri::command]
 pub fn clear_history(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     let images = {
-        let conn = state.conn.lock();
+        let conn = state.pool.get().map_err(runtime_error)?;
         db::clear_history(&conn).map_err(runtime_error)?
     };
     for path in images {
@@ -118,14 +127,14 @@ pub fn clear_history(state: State<'_, AppState>, app: AppHandle) -> Result<(), S
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::load_settings(&conn).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn update_settings(app: AppHandle, state: State<'_, AppState>, payload: AppSettings) -> Result<AppSettings, String> {
     let next_settings = {
-        let conn = state.conn.lock();
+        let conn = state.pool.get().map_err(runtime_error)?;
         db::save_settings(&conn, &payload).map_err(runtime_error)?
     };
     // Sync launch_on_startup to OS autostart
@@ -145,14 +154,19 @@ pub fn update_settings(app: AppHandle, state: State<'_, AppState>, payload: AppS
 
 #[tauri::command]
 pub fn get_hotkeys(state: State<'_, AppState>) -> Result<Vec<HotkeySetting>, String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::list_hotkeys(&conn).map_err(runtime_error)
 }
 
 #[tauri::command]
 pub fn update_hotkey_setting(state: State<'_, AppState>, action_key: String, hotkey_value: String) -> Result<HotkeySetting, String> {
-    let conn = state.conn.lock();
+    let conn = state.pool.get().map_err(runtime_error)?;
     db::save_hotkey(&conn, &action_key, &hotkey_value).map_err(runtime_error)
+}
+
+#[tauri::command]
+pub fn unregister_all_shortcuts(handle: AppHandle) -> Result<(), String> {
+    handle.global_shortcut().unregister_all().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -190,8 +204,8 @@ pub fn backup_data(state: State<'_, AppState>, save_path: String) -> Result<Stri
 
     // Force WAL checkpoint so all committed data is in the main .db file
     {
-        let conn = state.conn.lock();
-        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").map_err(|e| e.to_string())?;
+        let conn = state.pool.get().map_err(runtime_error)?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").map_err(|e: rusqlite::Error| e.to_string())?;
     }
 
     let file = std::fs::File::create(&save_path).map_err(|e| e.to_string())?;

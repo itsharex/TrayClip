@@ -73,31 +73,6 @@ fn read_clipboard_with_clipboard(paths: &AppPaths, clipboard: &mut Clipboard) ->
         }
     }
 
-    if let Ok(image) = clipboard.get_image() {
-        let bytes = image.bytes.as_ref();
-        if bytes.len() > 10 * 1024 * 1024 {
-            return Ok(None);
-        }
-        let width = image.width;
-        let height = image.height;
-        let content_hash = format!("{:x}", Sha256::digest(bytes));
-        let image_path = save_image(paths, image, &content_hash)?;
-        return Ok(Some((
-            content_hash.clone(),
-            NewClipRecord {
-                content_type: ClipContentType::Image,
-                plain_text: None,
-                rich_text: None,
-                summary: format!("图片 {}x{}", width, height),
-                image_path: Some(image_path.to_string_lossy().to_string()),
-                file_paths: Vec::new(),
-                source_app: "—".into(),
-                is_truncated: false,
-                content_hash,
-            },
-        )));
-    }
-
     if let Ok(text) = clipboard.get_text() {
         if text.trim().is_empty() {
             return Ok(None);
@@ -119,6 +94,31 @@ fn read_clipboard_with_clipboard(paths: &AppPaths, clipboard: &mut Clipboard) ->
                 file_paths,
                 source_app: "—".into(),
                 is_truncated,
+                content_hash,
+            },
+        )));
+    }
+
+    if let Ok(image) = clipboard.get_image() {
+        let bytes = image.bytes.as_ref();
+        if bytes.len() > 10 * 1024 * 1024 {
+            return Ok(None);
+        }
+        let width = image.width;
+        let height = image.height;
+        let content_hash = format!("{:x}", Sha256::digest(bytes));
+        let image_path = save_image(paths, image, &content_hash)?;
+        return Ok(Some((
+            content_hash.clone(),
+            NewClipRecord {
+                content_type: ClipContentType::Image,
+                plain_text: None,
+                rich_text: None,
+                summary: format!("图片 {}x{}", width, height),
+                image_path: Some(image_path.to_string_lossy().to_string()),
+                file_paths: Vec::new(),
+                source_app: "—".into(),
+                is_truncated: false,
                 content_hash,
             },
         )));
@@ -148,14 +148,6 @@ fn peek_signature_with_clipboard(_paths: &AppPaths, clipboard: &mut Clipboard) -
         }
     }
 
-    if let Ok(image) = clipboard.get_image() {
-        let bytes = image.bytes.as_ref();
-        if bytes.len() > 10 * 1024 * 1024 {
-            return Ok(None);
-        }
-        return Ok(Some(format!("{:x}", Sha256::digest(bytes))));
-    }
-
     if let Ok(text) = clipboard.get_text() {
         if text.trim().is_empty() {
             return Ok(None);
@@ -165,6 +157,14 @@ fn peek_signature_with_clipboard(_paths: &AppPaths, clipboard: &mut Clipboard) -
         let summary = summarize_text(truncated_text.as_deref().unwrap_or(&text));
         let content_hash = db::compute_hash(&content_type, &truncated_text, &None, &file_paths, &summary);
         return Ok(Some(content_hash));
+    }
+
+    if let Ok(image) = clipboard.get_image() {
+        let bytes = image.bytes.as_ref();
+        if bytes.len() > 10 * 1024 * 1024 {
+            return Ok(None);
+        }
+        return Ok(Some(format!("{:x}", Sha256::digest(bytes))));
     }
 
     Ok(None)

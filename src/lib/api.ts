@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings, BootstrapPayload, ClipGroup, HotkeyActionKey, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState } from "./types";
+import type { AppSettings, BootstrapPayload, ClipGroup, ConfigPayload, HotkeyActionKey, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState } from "./types";
 
-export const getBootstrap = () => invoke<BootstrapPayload>("get_bootstrap");
+export const getBootstrap = (groupId?: number | null) => invoke<BootstrapPayload>("get_bootstrap", { groupId: groupId ?? null });
+export const getConfig = () => invoke<ConfigPayload>("get_config");
 export const listClips = (payload: ListClipsRequest) => invoke<ListClipsResponse>("list_clips", { payload });
 export const listGroups = () => invoke<ClipGroup[]>("list_groups");
 export const pinToggle = (clipId: number, pinned: boolean) => invoke("pin_toggle", { clipId, pinned });
@@ -19,6 +20,8 @@ export const updateHotkey = async (actionKey: HotkeyActionKey, hotkeyValue: stri
   await invoke("reload_global_shortcuts");
   return result;
 };
+export const unregisterAllShortcuts = () => invoke("unregister_all_shortcuts");
+export const reloadGlobalShortcuts = () => invoke("reload_global_shortcuts");
 export const loadImageDataUrl = (filePath: string) => invoke<string>("load_image_data_url", { filePath });
 export const getPermissions = () => invoke<PermissionState>("get_permissions");
 export const requestAccessibilityPermission = () => invoke<boolean>("request_accessibility_permission");

@@ -92,8 +92,14 @@ impl<R: Runtime> ClipboardHandler for Monitor<R> {
         // Ingest into DB only when content actually changed
         if last_signature.as_ref() != Some(&signature) {
             let cleanup_images = {
-                let conn = state.conn.lock();
-                db::ingest_clip(&conn, &settings, clip).unwrap_or_default()
+                let conn = state.pool.get();
+                match conn {
+                    Ok(conn) => db::ingest_clip(&conn, &settings, clip).unwrap_or_default(),
+                    Err(e) => {
+                        eprintln!("[clipboard-monitor] failed to get db connection: {}", e);
+                        Vec::new()
+                    }
+                }
             };
             for image in cleanup_images {
                 let _ = std::fs::remove_file(image);

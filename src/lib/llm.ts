@@ -6,6 +6,17 @@ export interface LLMConfig {
 
 const SYSTEM_PROMPT = "You are a text processing assistant. Output result only, no explanation.";
 
+const LANG_NAMES: Record<string, string> = {
+    zh: "Chinese",
+    en: "English",
+    ja: "Japanese",
+    ko: "Korean",
+    fr: "French",
+    es: "Spanish",
+    de: "German",
+    ru: "Russian",
+};
+
 async function callLLM(
     config: LLMConfig,
     taskPrompt: string,
@@ -58,17 +69,7 @@ export async function summarizeText(config: LLMConfig, text: string, signal?: Ab
 }
 
 export async function translateText(config: LLMConfig, text: string, targetLang: string, signal?: AbortSignal): Promise<string> {
-    const langNames: Record<string, string> = {
-        zh: "Chinese",
-        en: "English",
-        ja: "Japanese",
-        ko: "Korean",
-        fr: "French",
-        es: "Spanish",
-        de: "German",
-        ru: "Russian",
-    };
-    const langName = langNames[targetLang] ?? targetLang;
+    const langName = LANG_NAMES[targetLang] ?? targetLang;
     return callLLM(
         config,
         `Translate the following text into ${langName}. If the text is already in ${langName}, translate it into English instead.`,

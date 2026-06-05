@@ -1,33 +1,51 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Languages, Moon, Settings, Sun, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { backupData, checkUpdate, clearHistory, deleteClip, deleteGroup, getBootstrap, hideWindow, moveClipToGroup, pinToggle, quitApp, recopyClip, restoreBackup, saveGroup, updateHotkey, updateSettings } from "./lib/api";
-import { FALLBACK_BOOTSTRAP } from "./lib/constants";
-import type { AppSettings, BootstrapPayload, ClipGroup } from "./lib/types";
-import { useTranslation } from "./lib/i18n";
-import { useAppVersion } from "./hooks/useAppVersion";
-import { useNotice } from "./hooks/useNotice";
-import { HistoryList } from "./components/HistoryList";
-import { SettingsPanel } from "./components/SettingsPanel";
+import {
+  backupData,
+  checkUpdate,
+  clearHistory,
+  deleteClip,
+  deleteGroup,
+  getConfig,
+  hideWindow,
+  listClips,
+  listGroups,
+  moveClipToGroup,
+  pinToggle,
+  quitApp,
+  recopyClip,
+  restoreBackup,
+  saveGroup,
+  updateHotkey,
+  updateSettings,
+} from "@/lib/api";
+import { FALLBACK_BOOTSTRAP } from "@/lib/constants";
+import type { AppSettings, BootstrapPayload, ClipGroup, TabKey } from "@/lib/types";
+import { useTranslation } from "@/lib/i18n";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { WindowBar } from "@/components/WindowBar";
+import { GroupBar } from "@/components/GroupBar";
+import { ClipList } from "@/components/ClipList";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { SettingsPanel } from "@/components/SettingsPanel";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 
-type TabKey = "clips" | "settings" | "help" | "about";
-
-interface ConfirmState {
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  onConfirm: () => Promise<void> | void;
-  onCancel?: () => Promise<void> | void;
-}
+const APP_VERSION = import.meta.env.TAURI_ENV_VERSION ?? "0.0.0";
 
 function AboutPanel() {
   const { t } = useTranslation();
-  const version = useAppVersion();
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{ has_update: boolean; latest_version: string; download_url: string; body: string } | null>(null);
+  const [result, setResult] = useState<{
+    has_update: boolean;
+    latest_version: string;
+    download_url: string;
+    body: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleCheck = async () => {
@@ -46,64 +64,93 @@ function AboutPanel() {
   };
 
   return (
-      <section className="tab-panel about-panel">
-        <div className="about-logo">
-          <img src="/logo.png" alt="TrayClip" width={80} height={80} />
-        </div>
-        <h2>{t.aboutTitle}</h2>
-        <p>{t.aboutDesc}</p>
-        <ul>
-          <li>{t.aboutVersion(version)}</li>
-          <li>{t.aboutStorage}</li>
-          <li>{t.aboutPlatform}</li>
-          <li>{t.aboutLicense}</li>
-          <li>Github：<a href="https://github.com/Heyiki/TrayClip" target="_blank" rel="noopener noreferrer">https://github.com/Heyiki/TrayClip</a></li>
-        </ul>
-        <div style={{ marginTop: 12 }}>
-          <button onClick={() => void handleCheck()} disabled={checking}>
-            {checking ? t.checking : t.checkUpdate}
-          </button>
-        </div>
-        {result ? (
-            <div className="update-result">
+    <ScrollArea className="flex-1">
+      <div className="p-3">
+        <Card className="border border-border/50 bg-card p-4">
+          <div className="mb-3 flex justify-center">
+            <img src="/logo.png" alt="TrayClip" width={64} height={64} className="rounded-xl" />
+          </div>
+          <h2 className="mb-1.5 text-sm font-semibold">{t.aboutTitle}</h2>
+          <p className="mb-3 text-sm text-muted-foreground">{t.aboutDesc}</p>
+          <ul className="space-y-1.5 text-[13px] text-muted-foreground">
+            <li>{t.aboutVersion(APP_VERSION)}</li>
+            <li>{t.aboutStorage}</li>
+            <li>{t.aboutPlatform}</li>
+            <li>{t.aboutLicense}</li>
+            <li>
+              Github:{" "}
+              <a
+                href="https://github.com/Heyiki/TrayClip"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                https://github.com/Heyiki/TrayClip
+              </a>
+            </li>
+          </ul>
+          <div className="mt-3">
+            <button
+              className="inline-flex items-center rounded-md border border-input bg-background px-3 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              onClick={() => void handleCheck()}
+              disabled={checking}
+            >
+              {checking ? t.checking : t.checkUpdate}
+            </button>
+          </div>
+          {result ? (
+            <div className="mt-3">
               {result.has_update ? (
-                  <>
-                    <p style={{ color: "var(--primary)", margin: "8px 0 4px" }}>{t.newVersion(result.latest_version)}</p>
-                    {result.body ? <pre className="update-changelog">{result.body}</pre> : null}
-                    <a href={result.download_url} target="_blank" rel="noopener noreferrer" className="update-link">{t.goToDownload}</a>
-                  </>
+                <>
+                  <p className="text-sm font-medium text-primary">{t.newVersion(result.latest_version)}</p>
+                  {result.body ? (
+                    <pre className="mt-1.5 max-h-[120px] overflow-y-auto whitespace-pre-wrap rounded-md border bg-muted p-2 text-xs text-muted-foreground">
+                      {result.body}
+                    </pre>
+                  ) : null}
+                  <a
+                    href={result.download_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-xs text-primary hover:underline"
+                  >
+                    {t.goToDownload}
+                  </a>
+                </>
               ) : (
-                  <p style={{ color: "var(--text-tertiary)", margin: "8px 0 0" }}>{t.upToDate}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t.upToDate}</p>
               )}
             </div>
-        ) : null}
-        {error ? <p style={{ color: "var(--danger)", margin: "8px 0 0", fontSize: 12 }}>{t.checkFailed(error)}</p> : null}
-      </section>
+          ) : null}
+          {error ? <p className="mt-2 text-xs text-destructive">{t.checkFailed(error)}</p> : null}
+        </Card>
+      </div>
+    </ScrollArea>
   );
 }
 
 export default function App() {
   const { t, locale, setLocale } = useTranslation();
   const [state, setState] = useState<BootstrapPayload>(FALLBACK_BOOTSTRAP);
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(() => {
+    const saved = localStorage.getItem("trayclip-selected-group");
+    if (saved === null || saved === "null") return null;
+    const n = Number(saved);
+    return Number.isNaN(n) ? null : n;
+  });
   const [search, setSearch] = useState("");
-  useEffect(() => { document.querySelector(".history-list")?.scrollTo(0, 0); }, [search]);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [showGroupInput, setShowGroupInput] = useState(false);
-  const [renamingGroupId, setRenamingGroupId] = useState<number | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("clips");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("trayclip-theme") as "light" | "dark") || "light";
   });
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const { notice, showNotice } = useNotice();
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const { confirm, setConfirm, handleConfirm, handleCancel } = useConfirmDialog();
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(state.settings);
+  const selectedGroupIdRef = useRef(selectedGroupId);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const initialLoadDone = useRef(false);
+  const isDragging = useRef(false);
+  const [loaded, setLoaded] = useState(false);
 
   const focusSearch = useCallback((selectText = false) => {
     setActiveTab("clips");
@@ -115,31 +162,74 @@ export default function App() {
     });
   }, []);
 
-  const load = useCallback(async () => {
+  const loadConfig = useCallback(async () => {
     try {
-      const payload = await getBootstrap();
-      setState(payload);
-    } catch {
-      // ignore
+      const cfg = await getConfig();
+      setState((prev) => ({ ...prev, ...cfg }));
+    } catch { /* ignore */ }
+  }, []);
+
+  const loadGroups = useCallback(async () => {
+    try {
+      const groups = await listGroups();
+      setState((prev) => ({ ...prev, groups }));
+    } catch { /* ignore */ }
+  }, []);
+
+  const loadClips = useCallback(async (groupId?: number | null) => {
+    try {
+      const gid = groupId === undefined ? selectedGroupIdRef.current : groupId;
+      const clips = await listClips({ page: 1, page_size: 100, group_id: gid ?? undefined });
+      setState((prev) => ({ ...prev, clips }));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Alias for bulk refresh (startup, restore, clear history)
+  const loadAll = useCallback(async () => {
+    for (let i = 0; i < 3; i++) {
+      try {
+        const [cfg, groups, clips] = await Promise.all([
+          getConfig(),
+          listGroups(),
+          listClips({ page: 1, page_size: 100, group_id: selectedGroupIdRef.current ?? undefined }),
+        ]);
+        setState({ ...cfg, groups, clips });
+        return;
+      } catch {
+        if (i < 2) await new Promise((r) => setTimeout(r, 100));
+      }
     }
   }, []);
 
+  // Startup: load everything
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadAll().finally(() => { initialLoadDone.current = true; setLoaded(true); });
+  }, [loadAll]);
+
+  // Group switch: clear old clips immediately, then reload
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    setState((prev) => ({ ...prev, clips: { items: [], total: 0, has_more: false } }));
+    void loadClips(selectedGroupId);
+  }, [selectedGroupId, loadClips]);
 
   useEffect(() => {
-    const win = getCurrentWindow();
     let unlisten: (() => void) | undefined;
-    win.onFocusChanged(({ payload: focused }) => {
-      if (focused) void load();
-    }).then((fn) => { unlisten = fn; });
-    return () => { unlisten?.(); };
-  }, [load]);
+    let cancelled = false;
+    getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused && initialLoadDone.current && !isDragging.current) void loadClips();
+    }).then((fn) => {
+      if (cancelled) { fn(); return; }
+      unlisten = fn;
+    });
+    return () => { cancelled = true; unlisten?.(); };
+  }, [loadClips]);
 
+  useEffect(() => { settingsRef.current = state.settings; }, [state.settings]);
   useEffect(() => {
-    settingsRef.current = state.settings;
-  }, [state.settings]);
+    selectedGroupIdRef.current = selectedGroupId;
+    localStorage.setItem("trayclip-selected-group", String(selectedGroupId));
+  }, [selectedGroupId]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -148,34 +238,15 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target as Node)) {
-        setSettingsMenuOpen(false);
-      }
-    };
+    const unlistens: (() => void)[] = [];
+    let cancelled = false;
+    const register = (fn: () => void) => { if (cancelled) { fn(); return; } unlistens.push(fn); };
 
-    window.addEventListener("pointerdown", handlePointerDown, true);
-    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
-  }, []);
-
-  useEffect(() => {
-    let unlistenClips: (() => void) | undefined;
-    let unlistenFocusSearch: (() => void) | undefined;
-    let unlistenClose: (() => void) | undefined;
-
-    void listen("clips://updated", () => {
-      void load();
-    }).then((fn) => {
-      unlistenClips = fn;
-    });
-
+    void listen("clips://updated", () => { void loadClips(); }).then(register);
     void listen("focus-main-search", () => {
       scrollRef.current?.scrollTo(0, 0);
       focusSearch(true);
-    }).then((fn) => {
-      unlistenFocusSearch = fn;
-    });
-
+    }).then(register);
     void listen("close-requested", () => {
       const behavior = settingsRef.current.close_behavior;
       if (behavior === "hide") {
@@ -187,154 +258,110 @@ export default function App() {
           message: t.confirmClose,
           confirmLabel: t.hideToTray,
           cancelLabel: t.exitApp,
-          onConfirm: async () => {
-            await hideWindow();
-          },
-          onCancel: async () => {
-            await quitApp();
-          },
+          onConfirm: async () => { await hideWindow(); },
+          onCancel: async () => { await quitApp(); },
         });
       }
-    }).then((fn) => {
-      unlistenClose = fn;
-    });
+    }).then(register);
 
     return () => {
-      unlistenClips?.();
-      unlistenFocusSearch?.();
-      unlistenClose?.();
+      cancelled = true;
+      unlistens.forEach((fn) => fn());
     };
-  }, [focusSearch, load]);
+  }, [focusSearch, t]);
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if (confirm || activeTab !== "clips") return;
       if (event.key !== "Escape") return;
-
       const target = event.target as HTMLElement | null;
       const isEditable = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       const isSearchInput = target === searchInputRef.current;
-
       if (isEditable && !isSearchInput) return;
-
       event.preventDefault();
-      if (search) {
-        setSearch("");
-        focusSearch(false);
-        return;
-      }
+      if (search) { setSearch(""); focusSearch(false); return; }
       void hideWindow();
     };
-
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [activeTab, confirm, focusSearch, search]);
 
+  useEffect(() => { document.querySelector("[data-radix-scroll-area-viewport]")?.scrollTo(0, 0); }, [search]);
+
   const filteredClips = useMemo(() => {
-    return state.clips.items.filter((clip) => {
-      const byGroup = selectedGroupId === null || clip.group_id === selectedGroupId;
-      const bySearch = `${clip.summary} ${clip.plain_text ?? ""} ${clip.source_app} ${clip.file_paths.join(" ")}`.toLowerCase().includes(search.toLowerCase());
-      return byGroup && bySearch;
-    });
-  }, [search, selectedGroupId, state.clips.items]);
+    if (!search) return state.clips.items;
+    const q = search.toLowerCase();
+    return state.clips.items.filter((clip) =>
+      `${clip.summary} ${clip.plain_text ?? ""} ${clip.source_app} ${clip.file_paths.join(" ")}`
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [search, state.clips.items]);
+  const deferredClips = useDeferredValue(filteredClips);
 
   const saveSettings = useCallback(async (next: AppSettings) => {
-    setState((current) => ({ ...current, settings: next }));
-    const updated = await updateSettings(next);
-    setState((current) => ({ ...current, settings: updated }));
-    void emit("settings://changed", updated);
+    try {
+      setState((current) => ({ ...current, settings: next }));
+      const updated = await updateSettings(next);
+      setState((current) => ({ ...current, settings: updated }));
+      void emit("settings://changed", updated);
+    } catch (e) {
+      console.error("[TrayClip] saveSettings failed:", e);
+    }
   }, []);
 
   const handleWindowClose = useCallback(async () => {
     const behavior = settingsRef.current.close_behavior;
-    if (behavior === "hide") {
-      await hideWindow();
-      return;
-    }
-    if (behavior === "exit") {
-      await quitApp();
-      return;
-    }
+    if (behavior === "hide") { await hideWindow(); return; }
+    if (behavior === "exit") { await quitApp(); return; }
     setConfirm({
       message: t.confirmClose,
       confirmLabel: t.hideToTray,
       cancelLabel: t.exitApp,
-      onConfirm: async () => {
-        await hideWindow();
-      },
-      onCancel: async () => {
-        await quitApp();
-      },
+      onConfirm: async () => { await hideWindow(); },
+      onCancel: async () => { await quitApp(); },
     });
   }, [t]);
 
-  const createGroup = useCallback(async () => {
-    const name = newGroupName.trim();
-    if (!name) return;
-    if (state.groups.some((g) => g.name === name)) {
-      showNotice(t.groupNameExists);
-      return;
-    }
+  const createGroup = useCallback(async (name: string) => {
+    if (state.groups.some((g) => g.name === name)) return;
     await saveGroup(null, name);
-    setNewGroupName("");
-    setShowGroupInput(false);
-    await load();
-  }, [newGroupName, state.groups, load, showNotice, t]);
+    await loadGroups();
+  }, [state.groups, loadGroups]);
 
-  const startRename = useCallback((group: ClipGroup) => {
-    setRenamingGroupId(group.id);
-    setRenameValue(group.name);
-  }, []);
-
-  const commitRename = useCallback(async () => {
-    if (renamingGroupId === null) return;
-    const name = renameValue.trim();
-    if (!name) {
-      setRenamingGroupId(null);
-      return;
-    }
-    if (state.groups.some((g) => g.name === name && g.id !== renamingGroupId)) {
-      showNotice(t.groupNameExists);
-      return;
-    }
-    await saveGroup(renamingGroupId, name);
-    setRenamingGroupId(null);
-    await load();
-  }, [renamingGroupId, renameValue, state.groups, load, showNotice, t]);
+  const renameGroup = useCallback(async (groupId: number, name: string) => {
+    if (state.groups.some((g) => g.name === name && g.id !== groupId)) return;
+    await saveGroup(groupId, name);
+    await loadGroups();
+  }, [state.groups, loadGroups]);
 
   const removeGroup = useCallback((group: ClipGroup) => {
     setConfirm({
       message: t.confirmDeleteGroup(group.name),
+      variant: "destructive",
       onConfirm: async () => {
         await deleteGroup(group.id);
         if (selectedGroupId === group.id) setSelectedGroupId(null);
-        await load();
-        showNotice(t.groupDeleted);
+        await Promise.all([loadGroups(), loadClips()]);
       },
     });
-  }, [selectedGroupId, load, showNotice, t]);
+  }, [selectedGroupId, loadGroups, loadClips, t]);
 
   const handleClearHistory = useCallback(() => {
     setConfirm({
       message: t.confirmClearHistory,
-      onConfirm: async () => {
-        await clearHistory();
-        await load();
-        showNotice(t.historyCleared);
-      },
+      variant: "destructive",
+      onConfirm: async () => { await clearHistory(); await loadClips(); },
     });
-  }, [load, showNotice, t]);
+  }, [loadClips, t]);
 
   const handleDeleteClip = useCallback((clipId: number) => {
     setConfirm({
       message: t.confirmDeleteClip,
-      onConfirm: async () => {
-        await deleteClip(clipId);
-        await load();
-        showNotice(t.clipDeleted);
-      },
+      variant: "destructive",
+      onConfirm: async () => { await deleteClip(clipId); await loadClips(); },
     });
-  }, [load, showNotice, t]);
+  }, [loadClips, t]);
 
   const handleBackup = useCallback(async () => {
     const filePath = await save({
@@ -343,13 +370,13 @@ export default function App() {
     });
     if (!filePath) return;
     await backupData(filePath);
-    showNotice(t.backupSuccess);
-  }, [showNotice, t]);
+  }, []);
 
   const handleRestore = useCallback(() => {
     setConfirm({
       message: t.confirmRestore,
       confirmLabel: t.restore,
+      variant: "destructive",
       onConfirm: async () => {
         const filePath = await open({
           multiple: false,
@@ -357,279 +384,160 @@ export default function App() {
         });
         if (!filePath) return;
         await restoreBackup(filePath as string);
+        await loadAll();
       },
     });
   }, [t]);
 
   const handleRecopy = useCallback(async (clipId: number) => {
     await recopyClip(clipId);
-    await load();
-    showNotice(t.copiedToClipboard);
-  }, [load, showNotice, t]);
+    await loadClips();
+  }, [loadClips]);
+
+  const handlePinToggle = useCallback((clipId: number, pinned: boolean) => {
+    void pinToggle(clipId, pinned).then(() => loadClips());
+  }, [loadClips]);
+
+  const handleMoveGroup = useCallback((clipId: number, groupId: number | null) => {
+    void moveClipToGroup(clipId, groupId).then(() => loadClips());
+  }, [loadClips]);
 
   return (
-      <main className="app-shell">
-        <header className="window-bar" onMouseDown={(e) => { if (e.button === 0) getCurrentWindow().startDragging(); }}>
-          <div className="window-bar__brand">
-            <span className="window-bar__title" onClick={() => setActiveTab("clips")} onMouseDown={(e) => e.stopPropagation()} style={{ cursor: "pointer" }}>{t.brand}</span>
-          </div>
-          <div className="window-bar__actions" onMouseDown={(e) => e.stopPropagation()}>
-            <button
-                className="window-bar__theme"
-                type="button"
-                aria-label={t.toggleLang}
-                onClick={() => setLocale(locale === "zh-CN" ? "en" : "zh-CN")}
-                title={t.toggleLang}
-            >
-              <Languages size={16} />
-            </button>
-            <button
-                className="window-bar__theme"
-                type="button"
-                aria-label={t.toggleTheme}
-                onClick={() => setTheme((th) => th === "light" ? "dark" : "light")}
-                title={t.toggleTheme}
-            >
-              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-            </button>
-            <div className="window-bar__settings" ref={settingsMenuRef}>
-              <button
-                  className={settingsMenuOpen ? "window-bar__settings-btn active" : "window-bar__settings-btn"}
-                  type="button"
-                  aria-label={t.settings}
-                  onClick={() => setSettingsMenuOpen((open) => !open)}
-              >
-                <Settings size={16} />
-              </button>
-              {settingsMenuOpen ? (
-                  <div className="window-bar__settings-menu" role="menu">
-                    <button type="button" role="menuitem" onClick={() => { setActiveTab("clips"); setSettingsMenuOpen(false); }}>{t.home}</button>
-                    <button type="button" role="menuitem" onClick={() => { setActiveTab("settings"); setSettingsMenuOpen(false); }}>{t.settings}</button>
-                    <button type="button" role="menuitem" onClick={() => { setActiveTab("help"); setSettingsMenuOpen(false); }}>{t.help}</button>
-                    <button type="button" role="menuitem" onClick={() => { setActiveTab("about"); setSettingsMenuOpen(false); }}>{t.about}</button>
-                  </div>
-              ) : null}
-            </div>
-            <button
-                className="window-bar__close"
-                type="button"
-                aria-label={t.closeWindow}
-                onClick={() => void handleWindowClose()}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </header>
+    <main className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+      <WindowBar
+        activeTab={activeTab}
+        theme={theme}
+        onTabChange={setActiveTab}
+        onThemeToggle={() => setTheme((th) => (th === "light" ? "dark" : "light"))}
+        onLanguageToggle={() => setLocale(locale === "zh-CN" ? "en" : "zh-CN")}
+        onClose={() => void handleWindowClose()}
+        onDragStart={() => { isDragging.current = true; }}
+        onDragEnd={() => { isDragging.current = false; }}
+      />
 
-        <section className="workspace">
-          {activeTab === "clips" ? (
-              <section className="tab-panel">
-                <div className="toolbar">
-                  <div className="toolbar-row">
-                    <input
-                        ref={searchInputRef}
-                        className="toolbar-search"
-                        placeholder={t.searchPlaceholder}
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="group-bar">
-                  <button
-                      className={selectedGroupId === null ? "group-tag active" : "group-tag"}
-                      onClick={() => setSelectedGroupId(null)}
-                  >
-                    {t.all}
-                  </button>
-                  {state.groups.map((group) => (
-                      renamingGroupId === group.id ? (
-                          <input
-                              key={group.id}
-                              autoFocus
-                              className="group-rename-input"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") void commitRename();
-                                if (e.key === "Escape") setRenamingGroupId(null);
-                              }}
-                              onBlur={() => void commitRename()}
-                              maxLength={10}
-                          />
-                      ) : (
-                          <button
-                              key={group.id}
-                              className={selectedGroupId === group.id ? "group-tag active" : "group-tag"}
-                              onClick={() => setSelectedGroupId(group.id)}
-                              onDoubleClick={() => startRename(group)}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                removeGroup(group);
-                              }}
-                              title={t.renameGroupHint(group.name)}
-                          >
-                            {group.name}
-                          </button>
-                      )
-                  ))}
-                  {showGroupInput ? (
-                      <div className="group-creator-inline">
-                        <input
-                            autoFocus
-                            className="group-creator-input"
-                            placeholder={t.groupNamePlaceholder}
-                            maxLength={10}
-                            value={newGroupName}
-                            onChange={(event) => setNewGroupName(event.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") void createGroup();
-                              if (e.key === "Escape") {
-                                setShowGroupInput(false);
-                                setNewGroupName("");
-                              }
-                            }}
-                            onBlur={() => {
-                              if (!newGroupName.trim()) setShowGroupInput(false);
-                            }}
-                        />
-                      </div>
-                  ) : (
-                      <button className="group-add-btn" onClick={() => setShowGroupInput(true)} title={t.createGroup}>+</button>
-                  )}
-                </div>
-
-                <section className="content-column">
-                  <div className="content-toolbar">
-                    <span className="content-count">{t.recordsCount(!search && selectedGroupId === null ? state.clips.total : filteredClips.length)}</span>
-                  </div>
-
-                  <HistoryList
-                      clips={filteredClips}
-                      groups={state.groups}
-                      settings={state.settings}
-                      scrollRef={scrollRef}
-                      onRecopy={handleRecopy}
-                      onPinToggle={async (clipId, pinned) => {
-                        await pinToggle(clipId, pinned);
-                        await load();
-                      }}
-                      onMoveGroup={async (clipId, groupId) => {
-                        await moveClipToGroup(clipId, groupId);
-                        await load();
-                      }}
-                      onDelete={handleDeleteClip}
-                  />
-                </section>
-              </section>
-          ) : null}
-
-          {activeTab === "settings" ? (
-              <section className="tab-panel">
-                <SettingsPanel
-                    settings={state.settings}
-                    hotkeys={state.hotkeys}
-                    onSettingsChange={saveSettings}
-                    onHotkeyChange={async (actionKey, hotkeyValue) => {
-                      await updateHotkey(actionKey, hotkeyValue);
-                      await load();
-                    }}
-                    onBackup={handleBackup}
-                    onRestore={handleRestore}
-                    onClearHistory={handleClearHistory}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {!loaded ? null : activeTab === "clips" ? (
+          <>
+            {/* Search + Groups */}
+            <div className="flex-shrink-0 border-b border-border/50 bg-muted">
+              <div className="px-3 py-1.5">
+                <Input
+                  ref={searchInputRef}
+                  placeholder={t.searchPlaceholder}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-7 rounded-lg border border-border/60 bg-card dark:bg-card text-xs placeholder:text-muted-foreground/50 focus-visible:border-primary/30"
                 />
-              </section>
-          ) : null}
-
-          {activeTab === "help" ? (
-              <section className="tab-panel about-panel">
-                <h2>{t.helpTitle}</h2>
-
-                <h3>{t.helpWindowOps}</h3>
-                <ul>
-                  {t.helpWindowOpsItems.map(([label, desc], i) => (
-                      <li key={i}><b>{label}：</b>{desc}</li>
-                  ))}
-                </ul>
-
-                <h3>{t.helpClipboard}</h3>
-                <ul>
-                  {t.helpClipboardItems.map(([label, desc], i) => (
-                      <li key={i}><b>{label}：</b>{desc}</li>
-                  ))}
-                </ul>
-
-                <h3>{t.helpGroups}</h3>
-                <ul>
-                  {t.helpGroupsItems.map(([label, desc], i) => (
-                      <li key={i}><b>{label}：</b>{desc}</li>
-                  ))}
-                </ul>
-
-                <h3>{t.helpKeyboard}</h3>
-                <ul>
-                  {t.helpKeyboardItems.map((item, i) => (
-                      <li key={i}>{item}</li>
-                  ))}
-                </ul>
-
-                <h3>{t.helpSettings}</h3>
-                <ul>
-                  {t.helpSettingsItems.map(([label, desc], i) => (
-                      <li key={i}><b>{label}：</b>{desc}</li>
-                  ))}
-                </ul>
-              </section>
-          ) : null}
-
-          {activeTab === "about" ? (
-              <AboutPanel />
-          ) : null}
-        </section>
-
-        {confirm ? (
-            <div className="confirm-overlay" onClick={() => setConfirm(null)}>
-              <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-                <p>{confirm.message}</p>
-                <div className="confirm-dialog__actions">
-                  <button
-                      onClick={async () => {
-                        try {
-                          if (confirm.onCancel) {
-                            await confirm.onCancel();
-                          }
-                        } catch (err) {
-                          console.error("操作失败:", err);
-                          showNotice(t.operationFailed);
-                        } finally {
-                          setConfirm(null);
-                        }
-                      }}
-                  >
-                    {confirm.cancelLabel ?? t.cancel}
-                  </button>
-                  <button
-                      className={confirm.cancelLabel ? "primary" : "danger"}
-                      onClick={async () => {
-                        try {
-                          await confirm.onConfirm();
-                        } catch (err) {
-                          console.error("操作失败:", err);
-                          showNotice(t.operationFailed);
-                        } finally {
-                          setConfirm(null);
-                        }
-                      }}
-                  >
-                    {confirm.confirmLabel ?? t.confirm}
-                  </button>
-                </div>
               </div>
+
+              <GroupBar
+                groups={state.groups}
+                selectedGroupId={selectedGroupId}
+                onSelect={setSelectedGroupId}
+                onCreate={(name) => void createGroup(name)}
+                onRename={(id, name) => void renameGroup(id, name)}
+                onDelete={removeGroup}
+              />
+
+            {/* Record count */}
+            <div className="flex-shrink-0 px-3 pb-1.5">
+              <span className="text-[10px] text-muted-foreground/50">
+                {t.recordsCount(state.clips.total)}
+              </span>
             </div>
+            </div>
+
+            {/* Clip list */}
+            <ClipList
+              clips={deferredClips}
+              groups={state.groups}
+              settings={state.settings}
+              scrollRef={scrollRef}
+              onRecopy={handleRecopy}
+              onPinToggle={handlePinToggle}
+              onMoveGroup={handleMoveGroup}
+              onDelete={handleDeleteClip}
+            />
+          </>
         ) : null}
 
-        {notice ? <div className="toast">{notice}</div> : null}
-      </main>
+        {loaded && activeTab === "settings" ? (
+          <ScrollArea className="flex-1">
+            <SettingsPanel
+              settings={state.settings}
+              hotkeys={state.hotkeys}
+              onSettingsChange={saveSettings}
+              onHotkeyChange={(actionKey, hotkeyValue) =>
+                void updateHotkey(actionKey, hotkeyValue).then(() => loadConfig())
+              }
+              onBackup={() => void handleBackup()}
+              onRestore={() => handleRestore()}
+              onClearHistory={() => handleClearHistory()}
+            />
+          </ScrollArea>
+        ) : null}
+
+        {loaded && activeTab === "help" ? (
+          <ScrollArea className="flex-1">
+            <div className="p-3">
+              <Card className="border border-border/50 bg-card p-4">
+                <h2 className="mb-3 text-sm font-semibold">{t.helpTitle}</h2>
+
+                <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpWindowOps}</h3>
+                <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
+                  {t.helpWindowOpsItems.map(([label, desc], i) => (
+                    <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
+                  ))}
+                </ul>
+
+                <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpClipboard}</h3>
+                <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
+                  {t.helpClipboardItems.map(([label, desc], i) => (
+                    <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
+                  ))}
+                </ul>
+
+                <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpGroups}</h3>
+                <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
+                  {t.helpGroupsItems.map(([label, desc], i) => (
+                    <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
+                  ))}
+                </ul>
+
+                <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpKeyboard}</h3>
+                <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
+                  {t.helpKeyboardItems.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+
+                <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpSettings}</h3>
+                <ul className="space-y-1.5 text-[13px] text-muted-foreground">
+                  {t.helpSettingsItems.map(([label, desc], i) => (
+                    <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+          </ScrollArea>
+        ) : null}
+
+        {loaded && activeTab === "about" ? <AboutPanel /> : null}
+      </div>
+
+      {/* Confirm Dialog */}
+      {confirm ? (
+        <ConfirmDialog
+          open
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          cancelLabel={confirm.cancelLabel}
+          variant={confirm.variant}
+          onConfirm={() => void handleConfirm()}
+          onCancel={() => void handleCancel()}
+        />
+      ) : null}
+
+    </main>
   );
 }

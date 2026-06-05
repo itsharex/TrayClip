@@ -1,67 +1,77 @@
+use std::time::Duration;
 use anyhow::Context;
 use chrono::Utc;
+use r2d2::Pool;
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
+use crate::app_state::{DbPool, SqliteConnectionManager};
 use crate::{models::{AppSettings, ClipContentType, ClipGroup, ClipRecord, HotkeySetting, ListClipsRequest, ListClipsResponse, NewClipRecord}, paths::AppPaths};
 
 pub const SCHEMA_VERSION: i64 = 1;
 
-pub fn open_database(paths: &AppPaths) -> anyhow::Result<Connection> {
-    let conn = Connection::open(&paths.db_path)?;
-    conn.execute_batch(
-        "
-        PRAGMA journal_mode=WAL;
-        CREATE TABLE IF NOT EXISTS schema_migrations (
-            version INTEGER PRIMARY KEY,
-            applied_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS clips (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            content_type TEXT NOT NULL,
-            plain_text TEXT,
-            rich_text TEXT,
-            summary TEXT NOT NULL,
-            image_path TEXT,
-            file_paths_json TEXT NOT NULL DEFAULT '[]',
-            source_app TEXT NOT NULL DEFAULT '—',
-            is_pinned INTEGER NOT NULL DEFAULT 0,
-            is_truncated INTEGER NOT NULL DEFAULT 0,
-            group_id INTEGER,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            last_used_at TEXT,
-            content_hash TEXT NOT NULL,
-            position_updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS clip_groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS app_settings (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            retention_limit INTEGER NOT NULL,
-            launch_on_startup INTEGER NOT NULL,
-            pause_capture INTEGER NOT NULL,
-            locale TEXT NOT NULL,
-            accessibility_prompted INTEGER NOT NULL,
-            close_behavior TEXT NOT NULL DEFAULT 'hide'
-        );
-        CREATE TABLE IF NOT EXISTS hotkey_settings (
-            action_key TEXT PRIMARY KEY,
-            hotkey_value TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_clips_created_at ON clips(created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_clips_group_id ON clips(group_id);
-        CREATE INDEX IF NOT EXISTS idx_clips_is_pinned ON clips(is_pinned);
-        CREATE INDEX IF NOT EXISTS idx_clips_content_hash ON clips(content_hash);
-        "
-    )?;
-    ensure_defaults(&conn)?;
-    mark_schema_version(&conn)?;
-    Ok(conn)
+pub fn create_pool(paths: &AppPaths) -> anyhow::Result<DbPool> {
+    let manager = SqliteConnectionManager::file(&paths.db_path);
+    let pool = Pool::builder()
+        .max_size(4)
+        .connection_timeout(Duration::from_secs(5))
+        .build(manager)?;
+    // Run migrations on the first connection
+    {
+        let conn = pool.get()?;
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                applied_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS clips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type TEXT NOT NULL,
+                plain_text TEXT,
+                rich_text TEXT,
+                summary TEXT NOT NULL,
+                image_path TEXT,
+                file_paths_json TEXT NOT NULL DEFAULT '[]',
+                source_app TEXT NOT NULL DEFAULT '—',
+                is_pinned INTEGER NOT NULL DEFAULT 0,
+                is_truncated INTEGER NOT NULL DEFAULT 0,
+                group_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_used_at TEXT,
+                content_hash TEXT NOT NULL,
+                position_updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS clip_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                retention_limit INTEGER NOT NULL,
+                launch_on_startup INTEGER NOT NULL,
+                pause_capture INTEGER NOT NULL,
+                locale TEXT NOT NULL,
+                accessibility_prompted INTEGER NOT NULL,
+                close_behavior TEXT NOT NULL DEFAULT 'hide'
+            );
+            CREATE TABLE IF NOT EXISTS hotkey_settings (
+                action_key TEXT PRIMARY KEY,
+                hotkey_value TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_clips_created_at ON clips(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_clips_group_id ON clips(group_id);
+            CREATE INDEX IF NOT EXISTS idx_clips_is_pinned ON clips(is_pinned);
+            CREATE INDEX IF NOT EXISTS idx_clips_content_hash ON clips(content_hash);
+            "
+        )?;
+        ensure_defaults(&conn)?;
+        mark_schema_version(&conn)?;
+    }
+    Ok(pool)
 }
 
 fn mark_schema_version(conn: &Connection) -> anyhow::Result<()> {
@@ -166,7 +176,7 @@ struct LlmConfigStore {
 }
 
 pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
-    conn.query_row(
+    let result = conn.query_row(
         "SELECT retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast, llm_config FROM app_settings WHERE id = 1",
         [],
         |row| {
@@ -189,7 +199,8 @@ pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
                 llm_ai_translate: llm.ai_translate,
             })
         },
-    ).context("failed to load app settings")
+    );
+    result.context("failed to load app settings")
 }
 
 pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Result<AppSettings> {
@@ -419,8 +430,8 @@ pub fn ingest_clip(conn: &Connection, settings: &AppSettings, payload: NewClipRe
             "DELETE FROM clips WHERE content_type = ?1 AND content_hash = ?2 AND id != ?3",
             params![content_type, payload.content_hash, clip_id],
         )?;
-        let images = cleanup_overflow(conn, settings.retention_limit)?;
-        return Ok(images);
+        // UPDATE doesn't increase count, skip overflow check
+        return Ok(Vec::new());
     }
 
     conn.execute(

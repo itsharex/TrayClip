@@ -74,3 +74,20 @@ export interface BootstrapPayload {
   hotkeys: HotkeySetting[];
   permissions: PermissionState;
 }
+
+export interface ConfigPayload {
+  settings: AppSettings;
+  hotkeys: HotkeySetting[];
+  permissions: PermissionState;
+}
+
+export type TabKey = "clips" | "settings" | "help" | "about";
+
+export interface ConfirmState {
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: "default" | "destructive";
+  onConfirm: () => Promise<void> | void;
+  onCancel?: () => Promise<void> | void;
+}

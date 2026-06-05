@@ -39,7 +39,7 @@ export const en: typeof zh = {
   emptyRecords: "No records",
 
   searchGroup: "Search groups",
-  ungrouped: "Ungrouped",
+  ungrouped: "All",
   noMatchGroup: "No matching groups",
 
   confirmClose: "Close window will hide to tray or exit?",

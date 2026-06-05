@@ -118,10 +118,13 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) {
 
 fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
     let paths = paths::AppPaths::resolve(app)?;
-    let conn = db::open_database(&paths)?;
-    let settings = db::load_settings(&conn)?;
+    let pool = db::create_pool(&paths)?;
+    let settings = {
+        let conn = pool.get().context("failed to get db connection")?;
+        db::load_settings(&conn)?
+    };
     Ok(AppState {
-        conn: Mutex::new(conn),
+        pool,
         paths,
         settings: RwLock::new(settings),
         permissions: RwLock::new(models::PermissionState::default()),
@@ -193,8 +196,11 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
 pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()> {
     let state = handle.state::<AppState>();
     let hotkeys = {
-        let conn = state.conn.lock();
-        db::list_hotkeys(&conn).unwrap_or_default()
+        let conn = state.pool.get();
+        match conn {
+            Ok(conn) => db::list_hotkeys(&conn).unwrap_or_default(),
+            Err(_) => Vec::new(),
+        }
     };
 
     for hotkey in &hotkeys {
@@ -294,7 +300,6 @@ fn main() {
                         let _ = w.emit("close-requested", ());
                     }
                 });
-                // Ensure main window is focused on startup so frontend renders data
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -350,6 +355,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_bootstrap,
+            commands::get_config,
             commands::list_clips,
             commands::list_groups,
             commands::recopy_clip,
@@ -374,6 +380,7 @@ fn main() {
             commands::simulate_paste,
             commands::check_update,
             commands::get_installer_type,
+            commands::unregister_all_shortcuts,
             commands::reload_global_shortcuts,
             commands::backup_data,
             commands::restore_backup,

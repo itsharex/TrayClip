@@ -125,6 +125,13 @@ pub struct BootstrapPayload {
     pub permissions: PermissionState,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigPayload {
+    pub settings: AppSettings,
+    pub hotkeys: Vec<HotkeySetting>,
+    pub permissions: PermissionState,
+}
+
 #[derive(Debug, Clone)]
 pub struct NewClipRecord {
     pub content_type: ClipContentType,

@@ -43,7 +43,7 @@ export const zh = {
 
   // 分组选择
   searchGroup: "搜索分组",
-  ungrouped: "未分组",
+  ungrouped: "全部",
   noMatchGroup: "无匹配分组",
 
   // 确认对话框

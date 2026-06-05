@@ -1,11 +1,10 @@
 import ReactDOM from "react-dom/client";
-import React from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { I18nProvider } from "./lib/i18n";
 import App from "./App";
 import QuickPanel from "./QuickPanel";
 import UrlToast from "./UrlToast";
-import "./styles.css";
+import "./index.css";
 
 const label = getCurrentWindow().label;
 
@@ -28,9 +27,7 @@ const Root = label === "quick-panel"
         : <App />;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-    <React.StrictMode>
-        <I18nProvider>
-            {Root}
-        </I18nProvider>
-    </React.StrictMode>,
+    <I18nProvider>
+        {Root}
+    </I18nProvider>,
 );
