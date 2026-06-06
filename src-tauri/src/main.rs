@@ -300,8 +300,6 @@ fn main() {
                         let _ = w.emit("close-requested", ());
                     }
                 });
-                let _ = window.show();
-                let _ = window.set_focus();
             }
 
             {

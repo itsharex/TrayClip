@@ -1,6 +1,6 @@
 [package]
 name = "trayclip"
-version = "0.2.1"
+version = "0.2.2"
 description = "Pure local clipboard tool"
 authors = ["Heyiki"]
 edition = "2021"

@@ -201,9 +201,15 @@ export default function App() {
     }
   }, []);
 
-  // Startup: load everything
+  // Startup: load everything, then show window
   useEffect(() => {
-    void loadAll().finally(() => { initialLoadDone.current = true; setLoaded(true); });
+    void loadAll().finally(() => {
+      initialLoadDone.current = true;
+      setLoaded(true);
+      const win = getCurrentWindow();
+      void win.show();
+      void win.setFocus();
+    });
   }, [loadAll]);
 
   // Group switch: clear old clips immediately, then reload
@@ -403,7 +409,7 @@ export default function App() {
   }, [loadClips]);
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <main className="flex h-screen flex-col overflow-hidden rounded-xl bg-background text-foreground">
       <WindowBar
         activeTab={activeTab}
         theme={theme}
