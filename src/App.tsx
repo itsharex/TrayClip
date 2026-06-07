@@ -224,7 +224,6 @@ export default function App() {
   return (
       <main className="flex h-screen flex-col overflow-hidden rounded-xl bg-background text-foreground">
         <WindowBar
-            activeTab={activeTab}
             theme={theme}
             onTabChange={setActiveTab}
             onThemeToggle={() => setTheme((th) => (th === "light" ? "dark" : "light"))}
@@ -293,51 +292,6 @@ export default function App() {
                     onRestore={() => handleRestore()}
                     onClearHistory={() => handleClearHistory()}
                 />
-              </ScrollArea>
-          ) : null}
-
-          {data.loaded && activeTab === "help" ? (
-              <ScrollArea className="flex-1">
-                <div className="p-3">
-                  <Card className="border border-border/50 bg-card p-4">
-                    <h2 className="mb-3 text-sm font-semibold">{t.helpTitle}</h2>
-
-                    <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpWindowOps}</h3>
-                    <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
-                      {t.helpWindowOpsItems.map(([label, desc], i) => (
-                          <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
-                      ))}
-                    </ul>
-
-                    <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpClipboard}</h3>
-                    <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
-                      {t.helpClipboardItems.map(([label, desc], i) => (
-                          <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
-                      ))}
-                    </ul>
-
-                    <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpGroups}</h3>
-                    <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
-                      {t.helpGroupsItems.map(([label, desc], i) => (
-                          <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
-                      ))}
-                    </ul>
-
-                    <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpKeyboard}</h3>
-                    <ul className="mb-4 space-y-1.5 text-[13px] text-muted-foreground">
-                      {t.helpKeyboardItems.map((item, i) => (
-                          <li key={i}>{item}</li>
-                      ))}
-                    </ul>
-
-                    <h3 className="mb-1.5 border-l-2 border-foreground/10 pl-2 text-xs font-medium text-foreground/60">{t.helpSettings}</h3>
-                    <ul className="space-y-1.5 text-[13px] text-muted-foreground">
-                      {t.helpSettingsItems.map(([label, desc], i) => (
-                          <li key={i}><span className="font-medium text-foreground">{label}：</span>{desc}</li>
-                      ))}
-                    </ul>
-                  </Card>
-                </div>
               </ScrollArea>
           ) : null}
 

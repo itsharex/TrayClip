@@ -81,7 +81,7 @@ export interface ConfigPayload {
   permissions: PermissionState;
 }
 
-export type TabKey = "clips" | "settings" | "help" | "about";
+export type TabKey = "clips" | "settings" | "about";
 
 export interface ConfirmState {
   message: string;
