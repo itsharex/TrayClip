@@ -61,8 +61,8 @@
 
 ## 帮助文档
 
-- [help.md](help.md)
-- [help.zh.md](help.zh.md)
+- [HELP.md](HELP.md)
+- [HELP_ZH.md](HELP_ZH.md)
 
 ## 开发环境
 

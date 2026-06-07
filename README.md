@@ -61,8 +61,8 @@ Hotkeys can be customized in Settings.
 
 ## Help
 
-- [help.md](help.md)
-- [help.zh.md](help.zh.md)
+- [HELP.md](HELP.md)
+- [HELP_ZH.md](HELP_ZH.md)
 
 ## Prerequisites
 
