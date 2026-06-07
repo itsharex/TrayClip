@@ -1,11 +1,11 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Copy, Pin, PinOff, Trash2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AppSettings, ClipGroup, ClipRecord } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n";
 import { useImagePreview } from "@/hooks/useImagePreview";
+import { useClipLlm } from "@/hooks/useClipLlm";
 import { extractUrl, isJson } from "@/lib/utils";
-import { extractKeywords, summarizeText } from "@/lib/llm";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -31,12 +31,12 @@ function isImagePath(path: string): boolean {
 function FileThumb({ path }: { path: string }) {
   const thumbSrc = useImagePreview(path);
   return (
-    <img
-      className="h-9 w-11 rounded-sm object-cover"
-      src={thumbSrc ?? undefined}
-      alt={path.split(/[/\\]/).pop() ?? "image"}
-      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-    />
+      <img
+          className="h-9 w-11 rounded-sm object-cover"
+          src={thumbSrc ?? undefined}
+          alt={path.split(/[/\\]/).pop() ?? "image"}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
   );
 }
 
@@ -67,7 +67,7 @@ function hashName(name: string): number {
 function TypeTag({ type, label }: { type: string; label: string }) {
   const color = TYPE_COLORS[type] ?? "bg-muted text-muted-foreground";
   return (
-    <span className={`inline-flex h-[15px] items-center rounded-[3px] px-1 font-mono text-[9px] font-bold tracking-wider ${color}`}>
+      <span className={`inline-flex h-[15px] items-center rounded-[3px] px-1 font-mono text-[9px] font-bold tracking-wider ${color}`}>
       {label}
     </span>
   );
@@ -85,15 +85,15 @@ interface ClipCardProps {
 }
 
 export const ClipCard = memo(function ClipCard({
-  clip,
-  selected,
-  groups,
-  settings,
-  onRecopy,
-  onPinToggle,
-  onMoveGroup,
-  onDelete,
-}: ClipCardProps) {
+                                                 clip,
+                                                 selected,
+                                                 groups,
+                                                 settings,
+                                                 onRecopy,
+                                                 onPinToggle,
+                                                 onMoveGroup,
+                                                 onDelete,
+                                               }: ClipCardProps) {
   const { t } = useTranslation();
   const typeLabel = t.contentType[clip.content_type] ?? clip.content_type.slice(0, 4).toUpperCase();
   const isFilePaths = clip.content_type === "file_paths";
@@ -102,20 +102,8 @@ export const ClipCard = memo(function ClipCard({
   const singleImage = imagePaths.length === 1 && otherPaths.length === 0;
   const clipImageSrc = useImagePreview(clip.content_type === "image" ? clip.image_path : null);
 
+  const { llmState, enabled: llmEnabled, config: llmConfig, close: closeLlmDialog, handleExtractKeywords, handleSummarize } = useClipLlm(settings);
   const [translateOpen, setTranslateOpen] = useState(false);
-  const [llmState, setLlmState] = useState<{
-    loading: boolean;
-    action: string;
-    result: string | null;
-    error: string | null;
-  }>({ loading: false, action: "", result: null, error: null });
-  const llmAbortRef = useRef<AbortController | null>(null);
-
-  const closeLlmDialog = useCallback(() => {
-    llmAbortRef.current?.abort();
-    llmAbortRef.current = null;
-    setLlmState({ loading: false, action: "", result: null, error: null });
-  }, []);
 
   const handleJsonCopy = useCallback(async () => {
     const text = clip.plain_text;
@@ -133,206 +121,172 @@ export const ClipCard = memo(function ClipCard({
 
   const url = useMemo(() => clip.plain_text ? extractUrl(clip.plain_text) : null, [clip.plain_text]);
   const json = useMemo(() => clip.plain_text ? isJson(clip.plain_text) : false, [clip.plain_text]);
-  const llmEnabled = !!(settings.llm_enabled && settings.llm_api_url && settings.llm_api_key && settings.llm_model);
   const textContent = clip.plain_text?.trim();
-  const llmConfig = useMemo(() => ({ apiUrl: settings.llm_api_url, apiKey: settings.llm_api_key, model: settings.llm_model }), [settings.llm_api_url, settings.llm_api_key, settings.llm_model]);
-
-  const startLlm = useCallback((action: string) => {
-    llmAbortRef.current?.abort();
-    const controller = new AbortController();
-    llmAbortRef.current = controller;
-    setLlmState({ loading: true, action, result: null, error: null });
-    return controller.signal;
-  }, []);
-
-  const handleExtractKeywords = useCallback(async () => {
-    if (!textContent) return;
-    const signal = startLlm(t.extractKeywords);
-    try {
-      const keywords = await extractKeywords(llmConfig, textContent, signal);
-      setLlmState({ loading: false, action: "", result: keywords, error: null });
-    } catch {
-      if (signal.aborted) return;
-      setLlmState({ loading: false, action: "", result: null, error: t.aiFailed });
-    }
-  }, [textContent, llmConfig, t.extractKeywords, t.aiFailed, startLlm]);
-
-  const handleSummarize = useCallback(async () => {
-    if (!textContent) return;
-    const signal = startLlm(t.aiSummarize);
-    try {
-      const summary = await summarizeText(llmConfig, textContent, signal);
-      setLlmState({ loading: false, action: "", result: summary, error: null });
-    } catch {
-      if (signal.aborted) return;
-      setLlmState({ loading: false, action: "", result: null, error: t.aiFailed });
-    }
-  }, [textContent, llmConfig, t.aiSummarize, t.aiFailed, startLlm]);
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={`group relative cursor-default rounded-lg border-l-[3px] border-y-2 border-r-2 bg-card text-card-foreground shadow-xs transition-all duration-200 ${
-            clip.is_pinned
-              ? `border-l-primary/60 ${selected ? "border-primary/40 shadow-md" : "border-y-transparent border-r-transparent hover:border-primary/40 hover:shadow-md"}`
-              : selected
-                ? "border-primary/40 shadow-md"
-                : "border-transparent hover:border-primary/40 hover:shadow-md"
-          }`}
-          onDoubleClick={() => onRecopy(clip.id)}
-        >
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+              className={`group relative cursor-default rounded-lg border-l-[3px] border-y-2 border-r-2 bg-card text-card-foreground shadow-xs transition-all duration-200 ${
+                  clip.is_pinned
+                      ? `border-l-primary/60 ${selected ? "border-primary/40 shadow-md" : "border-y-transparent border-r-transparent hover:border-primary/40 hover:shadow-md"}`
+                      : selected
+                          ? "border-primary/40 shadow-md"
+                          : "border-transparent hover:border-primary/40 hover:shadow-md"
+              }`}
+              onDoubleClick={() => onRecopy(clip.id)}
+          >
 
-          <div className="px-3 py-2.5">
-            {/* Meta row */}
-            <div className="mb-1.5 flex items-center gap-2">
-              <TypeTag type={clip.content_type} label={typeLabel} />
-              {clip.group_id ? (() => {
-                const groupName = groups.find((g) => g.id === clip.group_id)?.name;
-                return groupName ? (
-                  <span className={`inline-flex h-[15px] items-center rounded-[3px] px-1.5 text-[9px] font-bold ${GROUP_COLORS[hashName(groupName) % GROUP_COLORS.length]}`}>
+            <div className="px-3 py-2.5">
+              {/* Meta row */}
+              <div className="mb-1.5 flex items-center gap-2">
+                <TypeTag type={clip.content_type} label={typeLabel} />
+                {clip.group_id ? (() => {
+                  const groupName = groups.find((g) => g.id === clip.group_id)?.name;
+                  return groupName ? (
+                      <span className={`inline-flex h-[15px] items-center rounded-[3px] px-1.5 text-[9px] font-bold ${GROUP_COLORS[hashName(groupName) % GROUP_COLORS.length]}`}>
                     {groupName}
                   </span>
-                ) : null;
-              })() : null}
-              {clip.source_app && clip.source_app !== "—" ? (
-                <span className="max-w-[120px] truncate text-[10px] font-medium text-muted-foreground/70">{clip.source_app}</span>
-              ) : null}
-              {clip.is_truncated ? (
-                <span className="inline-flex h-[15px] items-center rounded-[3px] bg-amber-100 px-1 text-[9px] font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                  ) : null;
+                })() : null}
+                {clip.source_app && clip.source_app !== "—" ? (
+                    <span className="max-w-[120px] truncate text-[10px] font-medium text-muted-foreground/70">{clip.source_app}</span>
+                ) : null}
+                {clip.is_truncated ? (
+                    <span className="inline-flex h-[15px] items-center rounded-[3px] bg-amber-100 px-1 text-[9px] font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
                   TRUNC
                 </span>
-              ) : null}
-              <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/50">
+                ) : null}
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/50">
                 {new Date(clip.updated_at).toLocaleString("zh-CN")}
               </span>
+              </div>
+
+              {/* Content */}
+              {clip.content_type === "image" && clip.image_path ? (
+                  <img
+                      className="my-0.5 max-h-[56px] rounded-sm object-contain"
+                      src={clipImageSrc ?? undefined}
+                      alt="clipboard image"
+                  />
+              ) : null}
+              {isFilePaths && imagePaths.length > 0 ? (
+                  <div className="my-0.5 flex gap-1.5 overflow-hidden">
+                    {imagePaths.slice(0, 2).map((path) => (
+                        <FileThumb key={path} path={path} />
+                    ))}
+                  </div>
+              ) : null}
+              {isFilePaths ? (
+                  singleImage ? null : (
+                      <div className="line-clamp-1 break-all text-sm text-foreground/80" title={clip.file_paths.join("\n")}>
+                        {otherPaths.slice(0, 2).map((path) => (
+                            <span key={path} className="truncate">{path} </span>
+                        ))}
+                        {otherPaths.length > 2 ? (
+                            <span className="text-muted-foreground/50">{t.moreFiles(otherPaths.length - 2)}</span>
+                        ) : null}
+                      </div>
+                  )
+              ) : (
+                  <div className="line-clamp-1 break-all text-sm text-foreground/80" title={clip.plain_text || clip.summary}>
+                    {clip.summary}
+                  </div>
+              )}
+
+              {/* Actions — show on hover */}
+              <div className="mt-1.5 flex items-center gap-2 opacity-0 transition-all duration-150 group-hover:opacity-100">
+                <GroupSelect
+                    groups={groups}
+                    currentGroupId={clip.group_id}
+                    onSelect={(groupId) => onMoveGroup(clip.id, groupId)}
+                />
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded text-muted-foreground/60 hover:bg-background hover:text-foreground hover:shadow-sm"
+                    title={t.copy}
+                    onClick={() => onRecopy(clip.id)}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded text-muted-foreground/60 hover:bg-background hover:text-foreground hover:shadow-sm"
+                    title={clip.is_pinned ? t.unpin : t.pin}
+                    onClick={() => onPinToggle(clip.id, !clip.is_pinned)}
+                >
+                  {clip.is_pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded text-muted-foreground/60 hover:bg-background hover:text-destructive hover:shadow-sm"
+                    title={t.delete}
+                    onClick={() => onDelete(clip.id)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
 
-            {/* Content */}
-            {clip.content_type === "image" && clip.image_path ? (
-              <img
-                className="my-0.5 max-h-[56px] rounded-sm object-contain"
-                src={clipImageSrc ?? undefined}
-                alt="clipboard image"
-              />
-            ) : null}
-            {isFilePaths && imagePaths.length > 0 ? (
-              <div className="my-0.5 flex gap-1.5 overflow-hidden">
-                {imagePaths.slice(0, 2).map((path) => (
-                  <FileThumb key={path} path={path} />
-                ))}
-              </div>
-            ) : null}
-            {isFilePaths ? (
-              singleImage ? null : (
-                <div className="line-clamp-1 break-all text-sm text-foreground/80" title={clip.file_paths.join("\n")}>
-                  {otherPaths.slice(0, 2).map((path) => (
-                    <span key={path} className="truncate">{path} </span>
-                  ))}
-                  {otherPaths.length > 2 ? (
-                    <span className="text-muted-foreground/50">{t.moreFiles(otherPaths.length - 2)}</span>
-                  ) : null}
-                </div>
-              )
-            ) : (
-              <div className="line-clamp-1 break-all text-sm text-foreground/80" title={clip.plain_text || clip.summary}>
-                {clip.summary}
-              </div>
+            {/* LLM Dialog */}
+            {(llmState.loading || llmState.result || llmState.error) && (
+                <LLMResultDialog
+                    loading={llmState.loading}
+                    action={llmState.action}
+                    result={llmState.result}
+                    error={llmState.error}
+                    onCopy={() => {
+                      if (llmState.result) void navigator.clipboard.writeText(llmState.result);
+                      closeLlmDialog();
+                    }}
+                    onClose={closeLlmDialog}
+                />
             )}
 
-            {/* Actions — show on hover */}
-            <div className="mt-1.5 flex items-center gap-2 opacity-0 transition-all duration-150 group-hover:opacity-100">
-              <GroupSelect
-                groups={groups}
-                currentGroupId={clip.group_id}
-                onSelect={(groupId) => onMoveGroup(clip.id, groupId)}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded text-muted-foreground/60 hover:bg-background hover:text-foreground hover:shadow-sm"
-                title={t.copy}
-                onClick={() => onRecopy(clip.id)}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded text-muted-foreground/60 hover:bg-background hover:text-foreground hover:shadow-sm"
-                title={clip.is_pinned ? t.unpin : t.pin}
-                onClick={() => onPinToggle(clip.id, !clip.is_pinned)}
-              >
-                {clip.is_pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded text-muted-foreground/60 hover:bg-background hover:text-destructive hover:shadow-sm"
-                title={t.delete}
-                onClick={() => onDelete(clip.id)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
+            {/* Translate Dialog */}
+            {translateOpen && textContent ? (
+                <TranslateDialog
+                    text={textContent}
+                    llmConfig={llmConfig}
+                    llmEnabled={llmEnabled}
+                    aiTranslate={settings.llm_ai_translate}
+                    onClose={() => setTranslateOpen(false)}
+                />
+            ) : null}
           </div>
+        </ContextMenuTrigger>
 
-          {/* LLM Dialog */}
-          {(llmState.loading || llmState.result || llmState.error) && (
-            <LLMResultDialog
-              loading={llmState.loading}
-              action={llmState.action}
-              result={llmState.result}
-              error={llmState.error}
-              onCopy={() => {
-                if (llmState.result) void navigator.clipboard.writeText(llmState.result);
-                closeLlmDialog();
-              }}
-              onClose={closeLlmDialog}
-            />
-          )}
-
-          {/* Translate Dialog */}
-          {translateOpen && textContent ? (
-            <TranslateDialog
-              text={textContent}
-              llmConfig={llmConfig}
-              llmEnabled={llmEnabled}
-              aiTranslate={settings.llm_ai_translate}
-              onClose={() => setTranslateOpen(false)}
-            />
+        <ContextMenuContent>
+          {url ? (
+              <ContextMenuItem onClick={() => void openUrl(url)}>
+                {t.openLink}
+              </ContextMenuItem>
           ) : null}
-        </div>
-      </ContextMenuTrigger>
-
-      <ContextMenuContent>
-        {url ? (
-          <ContextMenuItem onClick={() => void openUrl(url)}>
-            {t.openLink}
+          <ContextMenuItem onClick={() => void handleJsonCopy()}>
+            {json ? t.jsonCopy : t.copy}
           </ContextMenuItem>
-        ) : null}
-        <ContextMenuItem onClick={() => void handleJsonCopy()}>
-          {json ? t.jsonCopy : t.copy}
-        </ContextMenuItem>
-        {textContent ? (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => setTranslateOpen(true)}>
-              {t.translate}
-            </ContextMenuItem>
-          </>
-        ) : null}
-        {llmEnabled && textContent ? (
-          <>
-            <ContextMenuItem onClick={() => void handleExtractKeywords()}>
-              {t.extractKeywords}
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => void handleSummarize()}>
-              {t.aiSummarize}
-            </ContextMenuItem>
-          </>
-        ) : null}
-      </ContextMenuContent>
-    </ContextMenu>
+          {textContent ? (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem onClick={() => setTranslateOpen(true)}>
+                  {t.translate}
+                </ContextMenuItem>
+              </>
+          ) : null}
+          {llmEnabled && textContent ? (
+              <>
+                <ContextMenuItem onClick={() => textContent && handleExtractKeywords(textContent)}>
+                  {t.extractKeywords}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => textContent && handleSummarize(textContent)}>
+                  {t.aiSummarize}
+                </ContextMenuItem>
+              </>
+          ) : null}
+        </ContextMenuContent>
+      </ContextMenu>
   );
 });

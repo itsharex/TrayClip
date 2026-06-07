@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { AppSettings, ClipGroup, ClipRecord } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n";
 import { ClipCard } from "@/components/ClipCard";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ClipListProps {
   clips: ClipRecord[];
@@ -16,24 +16,40 @@ interface ClipListProps {
 }
 
 export function ClipList({
-  clips,
-  groups,
-  settings,
-  scrollRef,
-  onRecopy,
-  onPinToggle,
-  onMoveGroup,
-  onDelete,
-}: ClipListProps) {
+                           clips,
+                           groups,
+                           settings,
+                           scrollRef,
+                           onRecopy,
+                           onPinToggle,
+                           onMoveGroup,
+                           onDelete,
+                         }: ClipListProps) {
   const { t } = useTranslation();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const selectedIndexRef = useRef(selectedIndex);
   const pendingDeltaRef = useRef(0);
   const flushRafRef = useRef(0);
   const internalRef = useRef<HTMLDivElement>(null);
-  const listRef = scrollRef ?? internalRef;
+  const scrollElement = scrollRef ?? internalRef;
 
-  useEffect(() => { setSelectedIndex(-1); selectedIndexRef.current = -1; }, [clips]);
+  const virtualizer = useVirtualizer({
+    count: clips.length,
+    getScrollElement: () => scrollElement.current,
+    estimateSize: () => 90,
+    overscan: 5,
+    measureElement: (el) => {
+      const style = window.getComputedStyle(el);
+      const margin = parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+      return el.getBoundingClientRect().height + margin;
+    },
+  });
+
+  useEffect(() => {
+    setSelectedIndex(-1);
+    selectedIndexRef.current = -1;
+    virtualizer.scrollToIndex(0, { align: "start" });
+  }, [clips]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
@@ -64,6 +80,7 @@ export function ClipList({
             const next = prev === -1 ? 0 : prev + delta;
             const clamped = Math.max(0, Math.min(clips.length - 1, next));
             selectedIndexRef.current = clamped;
+            virtualizer.scrollToIndex(clamped, { align: "auto" });
             return clamped;
           });
         });
@@ -74,45 +91,67 @@ export function ClipList({
       document.removeEventListener("keydown", handleKeydown, true);
       cancelAnimationFrame(flushRafRef.current);
     };
-  }, [clips, onRecopy]);
+  }, [clips, onRecopy, virtualizer]);
 
-  useEffect(() => {
-    if (selectedIndex < 0) return;
-    requestAnimationFrame(() => {
-      listRef.current?.querySelector("[data-selected]")?.scrollIntoView({ block: "nearest" });
-    });
-  }, [selectedIndex, listRef]);
+  const measureRef = useCallback(
+      (el: HTMLDivElement | null) => {
+        if (el) virtualizer.measureElement(el);
+      },
+      [virtualizer],
+  );
 
   if (clips.length === 0) {
     return (
-      <div className="flex w-full flex-1 flex-col items-center justify-center gap-1 p-8">
-        <p className="text-xs text-muted-foreground/40">{t.emptyRecords}</p>
-      </div>
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-1 p-8">
+          <p className="text-xs text-muted-foreground/40">{t.emptyRecords}</p>
+        </div>
     );
   }
 
+  const virtualItems = virtualizer.getVirtualItems();
+
   return (
-    <ScrollArea className="w-full flex-1" ref={listRef}>
-      <div className="flex w-full flex-col gap-1.5 px-1.5 pt-1.5 pb-1.5">
-        {clips.map((clip, index) => (
+      <div ref={scrollElement} className="w-full flex-1 overflow-y-auto">
+        <div className="flex w-full flex-col gap-1.5 px-1.5 pt-1.5 pb-1.5">
           <div
-            key={clip.id}
-            data-selected={index === selectedIndex ? "" : undefined}
-            className="group"
+              style={{
+                height: virtualizer.getTotalSize(),
+                width: "100%",
+                position: "relative",
+              }}
           >
-            <ClipCard
-              clip={clip}
-              selected={index === selectedIndex}
-              groups={groups}
-              settings={settings}
-              onRecopy={onRecopy}
-              onPinToggle={onPinToggle}
-              onMoveGroup={onMoveGroup}
-              onDelete={onDelete}
-            />
+            <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
+                }}
+            >
+              {virtualItems.map((virtualRow) => (
+                  <div
+                      key={virtualRow.key}
+                      data-index={virtualRow.index}
+                      ref={measureRef}
+                      className="group mb-1.5"
+                      data-selected={virtualRow.index === selectedIndex ? "" : undefined}
+                  >
+                    <ClipCard
+                        clip={clips[virtualRow.index]}
+                        selected={virtualRow.index === selectedIndex}
+                        groups={groups}
+                        settings={settings}
+                        onRecopy={onRecopy}
+                        onPinToggle={onPinToggle}
+                        onMoveGroup={onMoveGroup}
+                        onDelete={onDelete}
+                    />
+                  </div>
+              ))}
+            </div>
           </div>
-        ))}
+        </div>
       </div>
-    </ScrollArea>
   );
 }
