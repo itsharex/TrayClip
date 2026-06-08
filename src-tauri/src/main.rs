@@ -273,7 +273,12 @@ fn main() {
         .setup(|app| {
             // Hide Dock icon on macOS — keep only the menu bar tray icon
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            {
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                // Override default macOS menu bar with an empty menu
+                use tauri::menu::Menu;
+                let _ = app.set_menu(Menu::with_items(app, &[]));
+            }
 
             apply_pending_restore(app.handle());
             let state = build_state(app.handle()).context("failed to initialize app state")?;
