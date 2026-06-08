@@ -282,7 +282,7 @@ fn main() {
                     .build(app)?;
                 let menu = MenuBuilder::new(app)
                     .item(&quit)
-                    .build(app)?;
+                    .build()?;
                 let _ = app.set_menu(menu);
             }
 
