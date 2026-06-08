@@ -170,6 +170,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
 
     let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
+        .icon_as_template(true)
         .menu(&menu)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
@@ -281,8 +282,6 @@ fn main() {
         }))
         .setup(|app| {
             // macOS: Accessory mode — hide Dock icon, keep only menu bar tray icon
-            // This is the standard pattern for background utilities (clipboard managers, etc.)
-            // Closing the tray icon = quitting the app
             #[cfg(target_os = "macos")]
             {
                 use objc2::runtime::AnyObject;
@@ -291,7 +290,7 @@ fn main() {
                 unsafe {
                     let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
                     // NSApplicationActivationPolicyAccessory = 1 (no Dock icon, only menu bar)
-                    let _: () = msg_send![ns_app, setActivationPolicy: 1_i64];
+                    let _: bool = msg_send![ns_app, setActivationPolicy: 1_i64];
                 }
             }
 
@@ -414,13 +413,20 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while running trayclip")
         .run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                // Unregister global shortcuts before exit.
-                // macOS with Accessory policy may leave the process in a zombie state
-                // where shortcuts persist after the app appears to have quit.
-                let _ = app.global_shortcut().unregister_all();
+            // macOS: Re-apply Accessory policy after Tauri fully initializes
+            // (Tauri may override it during setup)
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Ready = event {
+                use objc2::runtime::AnyObject;
+                use objc2::{class, msg_send};
+                unsafe {
+                    let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+                    let _: bool = msg_send![ns_app, setActivationPolicy: 1_i64];
+                }
+            }
 
-                // Force exit after a short delay if process doesn't terminate
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let _ = app.global_shortcut().unregister_all();
                 std::thread::spawn(|| {
                     std::thread::sleep(std::time::Duration::from_millis(500));
                     std::process::exit(0);
