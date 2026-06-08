@@ -137,20 +137,25 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
     })
 }
 
-fn show_main_window_centered(app: &tauri::AppHandle) {
+pub fn show_main_window_centered(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         // If already visible and focused, do nothing
         if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
             return;
         }
         if let Ok(Some(monitor)) = window.current_monitor() {
+            let scale = monitor.scale_factor();
             let size = monitor.size();
             let pos = monitor.position();
-            let win_w = 400;
-            let win_h = 500;
-            let x = pos.x + (size.width as i32 - win_w) / 2;
-            let y = pos.y + (size.height as i32 - win_h) / 2;
-            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+            let monitor_x = pos.x as f64 / scale;
+            let monitor_y = pos.y as f64 / scale;
+            let logical_w = size.width as f64 / scale;
+            let logical_h = size.height as f64 / scale;
+            let win_w = 400.0;
+            let win_h = 500.0;
+            let x = monitor_x + (logical_w - win_w) / 2.0;
+            let y = monitor_y + (logical_h - win_h) / 2.0;
+            let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         }
         let _ = window.show();
         let _ = window.set_focus();
@@ -271,7 +276,7 @@ fn main() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             apply_pending_restore(app.handle());
-            let state = build_state(&app.handle()).context("failed to initialize app state")?;
+            let state = build_state(app.handle()).context("failed to initialize app state")?;
             app.manage(state);
             {
                 let state = app.state::<AppState>();
@@ -372,6 +377,7 @@ fn main() {
             commands::request_accessibility_permission,
             commands::hide_window,
             commands::quit_app,
+            commands::show_main_window,
             commands::toggle_quick_panel,
             commands::hide_quick_panel,
             commands::set_dragging,
@@ -385,6 +391,14 @@ fn main() {
             commands::show_url_toast,
             commands::bing_translate
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running trayclip");
+        .build(tauri::generate_context!())
+        .expect("error while running trayclip")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                // Unregister global shortcuts before exit.
+                // macOS with Accessory policy may leave the process in a zombie state
+                // where shortcuts persist after the app appears to have quit.
+                let _ = app.global_shortcut().unregister_all();
+            }
+        });
 }
