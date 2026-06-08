@@ -271,11 +271,9 @@ fn main() {
             }
         }))
         .setup(|app| {
-            // Hide Dock icon on macOS — keep the top menu bar and tray icon
+            // macOS: Regular mode — show Dock icon + top menu bar with Quit
             #[cfg(target_os = "macos")]
             {
-                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-                // Set a minimal menu bar with Quit so Cmd+Q fully exits the process
                 let quit = MenuItemBuilder::new("Quit TrayClip")
                     .id("quit_app")
                     .accelerator("CmdOrCtrl+Q")
