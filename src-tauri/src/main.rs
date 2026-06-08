@@ -271,15 +271,19 @@ fn main() {
             }
         }))
         .setup(|app| {
-            // Hide Dock icon on macOS — keep only the menu bar tray icon
+            // Hide Dock icon on macOS — keep the top menu bar and tray icon
             #[cfg(target_os = "macos")]
             {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-                // Override default macOS menu bar with an empty menu
-                use tauri::menu::Menu;
-                if let Ok(menu) = Menu::with_items(app, &[]) {
-                    let _ = app.set_menu(menu);
-                }
+                // Set a minimal menu bar with Quit so Cmd+Q fully exits the process
+                let quit = MenuItemBuilder::new("Quit TrayClip")
+                    .id("quit_app")
+                    .accelerator("CmdOrCtrl+Q")
+                    .build(app)?;
+                let menu = MenuBuilder::new(app)
+                    .item(&quit)
+                    .build(app)?;
+                let _ = app.set_menu(menu);
             }
 
             apply_pending_restore(app.handle());
@@ -303,6 +307,15 @@ fn main() {
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
             setup_tray(app).context("failed to setup tray")?;
+
+            // Handle macOS app menu events
+            #[cfg(target_os = "macos")]
+            app.on_menu_event(|app, event| {
+                if event.id().as_ref() == "quit_app" {
+                    let _ = app.global_shortcut().unregister_all();
+                    app.exit(0);
+                }
+            });
 
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
