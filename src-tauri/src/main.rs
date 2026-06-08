@@ -130,7 +130,6 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
         permissions: RwLock::new(models::PermissionState::default()),
         last_clip_signature: Mutex::new(None),
         is_dragging: std::sync::Arc::new(Mutex::new(false)),
-        tray: Mutex::new(None),
         #[cfg(target_os = "windows")]
         previous_hwnd: Mutex::new(0),
         #[cfg(target_os = "linux")]
@@ -138,7 +137,7 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
     })
 }
 
-pub fn show_main_window_centered(app: &tauri::AppHandle) {
+fn show_main_window_centered(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         // If already visible and focused, do nothing
         if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
@@ -169,9 +168,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-        .icon_as_template(true)
         .menu(&menu)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
@@ -190,22 +188,12 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                     show_main_window_centered(app);
                 }
                 "quit" => {
-                    let _ = app.global_shortcut().unregister_all();
                     app.exit(0);
-                    std::thread::spawn(|| {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        std::process::exit(0);
-                    });
                 }
                 _ => {}
             }
         })
         .build(app)?;
-
-    // Store tray icon in AppState to keep it alive for the entire app lifetime.
-    // On macOS, dropping the TrayIcon destroys the NSStatusItem (menu bar icon).
-    let state = app.handle().state::<AppState>();
-    *state.tray.lock() = Some(tray);
 
     Ok(())
 }
@@ -283,21 +271,12 @@ fn main() {
             }
         }))
         .setup(|app| {
-            // macOS: Accessory mode — hide Dock icon, keep only menu bar tray icon
+            // Hide Dock icon on macOS — keep only the menu bar tray icon
             #[cfg(target_os = "macos")]
-            {
-                use objc2::runtime::AnyObject;
-                use objc2::{class, msg_send};
-
-                unsafe {
-                    let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
-                    // NSApplicationActivationPolicyAccessory = 1 (no Dock icon, only menu bar)
-                    let _: bool = msg_send![ns_app, setActivationPolicy: 1_i64];
-                }
-            }
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             apply_pending_restore(app.handle());
-            let state = build_state(app.handle()).context("failed to initialize app state")?;
+            let state = build_state(&app.handle()).context("failed to initialize app state")?;
             app.manage(state);
             {
                 let state = app.state::<AppState>();
@@ -398,7 +377,6 @@ fn main() {
             commands::request_accessibility_permission,
             commands::hide_window,
             commands::quit_app,
-            commands::show_main_window,
             commands::toggle_quick_panel,
             commands::hide_quick_panel,
             commands::set_dragging,
@@ -412,27 +390,6 @@ fn main() {
             commands::show_url_toast,
             commands::bing_translate
         ])
-        .build(tauri::generate_context!())
-        .expect("error while running trayclip")
-        .run(|app, event| {
-            // macOS: Re-apply Accessory policy after Tauri fully initializes
-            // (Tauri may override it during setup)
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Ready = event {
-                use objc2::runtime::AnyObject;
-                use objc2::{class, msg_send};
-                unsafe {
-                    let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
-                    let _: bool = msg_send![ns_app, setActivationPolicy: 1_i64];
-                }
-            }
-
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                let _ = app.global_shortcut().unregister_all();
-                std::thread::spawn(|| {
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                    std::process::exit(0);
-                });
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("error while running trayclip");
 }

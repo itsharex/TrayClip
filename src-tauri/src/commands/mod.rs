@@ -334,19 +334,7 @@ pub fn hide_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
-    let _ = app.global_shortcut().unregister_all();
     app.exit(0);
-
-    // Force exit after a short delay to prevent zombie processes on macOS
-    std::thread::spawn(|| {
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        std::process::exit(0);
-    });
-}
-
-#[tauri::command]
-pub fn show_main_window(app: AppHandle) {
-    crate::show_main_window_centered(&app);
 }
 
 pub fn position_quick_panel(window: &tauri::WebviewWindow, panel_position: &str) {
@@ -507,15 +495,15 @@ struct BingTokenCache {
     expiry: std::time::Instant,
 }
 
-static BING_TOKEN: std::sync::OnceLock<parking_lot::Mutex<BingTokenCache>> = std::sync::OnceLock::new();
+static BING_TOKEN: std::sync::OnceLock<std::sync::Mutex<BingTokenCache>> = std::sync::OnceLock::new();
 
 async fn get_bing_token(client: &reqwest::Client) -> Result<String, String> {
-    let cache = BING_TOKEN.get_or_init(|| parking_lot::Mutex::new(BingTokenCache {
+    let cache = BING_TOKEN.get_or_init(|| std::sync::Mutex::new(BingTokenCache {
         token: String::new(),
         expiry: std::time::Instant::now(),
     }));
     {
-        let cached = cache.lock();
+        let cached = cache.lock().unwrap();
         if !cached.token.is_empty() && std::time::Instant::now() < cached.expiry {
             return Ok(cached.token.clone());
         }
@@ -534,7 +522,7 @@ async fn get_bing_token(client: &reqwest::Client) -> Result<String, String> {
         return Err("Bing auth returned empty token".into());
     }
 
-    let mut cached = cache.lock();
+    let mut cached = cache.lock().unwrap();
     *cached = BingTokenCache {
         token: token.clone(),
         expiry: std::time::Instant::now() + std::time::Duration::from_secs(9 * 60),
