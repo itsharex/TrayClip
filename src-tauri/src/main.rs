@@ -188,7 +188,16 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                     show_main_window_centered(app);
                 }
                 "quit" => {
+                    // Properly clean up before exiting to avoid zombie processes
+                    let _ = app.global_shortcut().unregister_all();
                     app.exit(0);
+
+                    // Force exit after a short delay if process doesn't terminate
+                    // This prevents zombie processes on macOS with Accessory mode
+                    std::thread::spawn(|| {
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        std::process::exit(0);
+                    });
                 }
                 _ => {}
             }
@@ -271,18 +280,11 @@ fn main() {
             }
         }))
         .setup(|app| {
-            // macOS: Regular mode — show Dock icon + top menu bar with Quit
+            // macOS: Accessory mode — hide Dock icon, keep only menu bar tray icon
+            // This is the standard pattern for background utilities (clipboard managers, etc.)
+            // Closing the tray icon = quitting the app
             #[cfg(target_os = "macos")]
-            {
-                let quit = MenuItemBuilder::new("Quit TrayClip")
-                    .id("quit_app")
-                    .accelerator("CmdOrCtrl+Q")
-                    .build(app)?;
-                let menu = MenuBuilder::new(app)
-                    .item(&quit)
-                    .build()?;
-                let _ = app.set_menu(menu);
-            }
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             apply_pending_restore(app.handle());
             let state = build_state(app.handle()).context("failed to initialize app state")?;
@@ -305,15 +307,6 @@ fn main() {
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
             setup_tray(app).context("failed to setup tray")?;
-
-            // Handle macOS app menu events
-            #[cfg(target_os = "macos")]
-            app.on_menu_event(|app, event| {
-                if event.id().as_ref() == "quit_app" {
-                    let _ = app.global_shortcut().unregister_all();
-                    app.exit(0);
-                }
-            });
 
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
@@ -417,6 +410,12 @@ fn main() {
                 // macOS with Accessory policy may leave the process in a zombie state
                 // where shortcuts persist after the app appears to have quit.
                 let _ = app.global_shortcut().unregister_all();
+
+                // Force exit after a short delay if process doesn't terminate
+                std::thread::spawn(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    std::process::exit(0);
+                });
             }
         });
 }

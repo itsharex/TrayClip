@@ -336,6 +336,12 @@ pub fn hide_window(app: AppHandle) -> Result<(), String> {
 pub fn quit_app(app: AppHandle) {
     let _ = app.global_shortcut().unregister_all();
     app.exit(0);
+
+    // Force exit after a short delay to prevent zombie processes on macOS
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        std::process::exit(0);
+    });
 }
 
 #[tauri::command]
