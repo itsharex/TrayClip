@@ -284,7 +284,16 @@ fn main() {
             // This is the standard pattern for background utilities (clipboard managers, etc.)
             // Closing the tray icon = quitting the app
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            {
+                use objc2::runtime::AnyObject;
+                use objc2::{class, msg_send};
+
+                unsafe {
+                    let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+                    // NSApplicationActivationPolicyAccessory = 1 (no Dock icon, only menu bar)
+                    let _: () = msg_send![ns_app, setActivationPolicy: 1_i64];
+                }
+            }
 
             apply_pending_restore(app.handle());
             let state = build_state(app.handle()).context("failed to initialize app state")?;
