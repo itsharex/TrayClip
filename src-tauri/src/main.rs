@@ -130,6 +130,7 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
         permissions: RwLock::new(models::PermissionState::default()),
         last_clip_signature: Mutex::new(None),
         is_dragging: std::sync::Arc::new(Mutex::new(false)),
+        tray: Mutex::new(None),
         #[cfg(target_os = "windows")]
         previous_hwnd: Mutex::new(0),
         #[cfg(target_os = "linux")]
@@ -168,7 +169,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let _tray = TrayIconBuilder::new()
+    let tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .icon_as_template(true)
         .menu(&menu)
@@ -189,12 +190,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                     show_main_window_centered(app);
                 }
                 "quit" => {
-                    // Properly clean up before exiting to avoid zombie processes
                     let _ = app.global_shortcut().unregister_all();
                     app.exit(0);
-
-                    // Force exit after a short delay if process doesn't terminate
-                    // This prevents zombie processes on macOS with Accessory mode
                     std::thread::spawn(|| {
                         std::thread::sleep(std::time::Duration::from_millis(500));
                         std::process::exit(0);
@@ -204,6 +201,11 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
             }
         })
         .build(app)?;
+
+    // Store tray icon in AppState to keep it alive for the entire app lifetime.
+    // On macOS, dropping the TrayIcon destroys the NSStatusItem (menu bar icon).
+    let state = app.handle().state::<AppState>();
+    *state.tray.lock() = Some(tray);
 
     Ok(())
 }

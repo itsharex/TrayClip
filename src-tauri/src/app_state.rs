@@ -45,6 +45,8 @@ pub struct AppState {
     pub permissions: RwLock<PermissionState>,
     pub last_clip_signature: Mutex<Option<String>>,
     pub is_dragging: Arc<Mutex<bool>>,
+    /// Hold the tray icon to prevent it from being dropped (macOS requires NSStatusItem to live)
+    pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
     #[cfg(target_os = "windows")]
     pub previous_hwnd: Mutex<usize>,
     #[cfg(target_os = "linux")]
