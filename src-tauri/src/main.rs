@@ -277,7 +277,9 @@ fn main() {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
                 // Override default macOS menu bar with an empty menu
                 use tauri::menu::Menu;
-                let _ = app.set_menu(Menu::with_items(app, &[]));
+                if let Ok(menu) = Menu::with_items(app, &[]) {
+                    let _ = app.set_menu(menu);
+                }
             }
 
             apply_pending_restore(app.handle());
