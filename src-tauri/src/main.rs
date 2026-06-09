@@ -167,6 +167,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
         .icon(app.default_window_icon().unwrap().clone())
         .icon_as_template(true)
         .menu(&menu)
+        .menu_on_left_click(false)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
