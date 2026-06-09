@@ -266,10 +266,6 @@ fn main() {
             }
         }))
         .setup(|app| {
-            // Hide Dock icon on macOS — keep only the menu bar tray icon
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
             app.manage(state);
@@ -291,6 +287,11 @@ fn main() {
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
             setup_tray(app).context("failed to setup tray")?;
+
+            // Hide Dock icon on macOS — keep only the menu bar tray icon
+            // Must be called AFTER setup_tray, otherwise the tray icon won't appear
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
