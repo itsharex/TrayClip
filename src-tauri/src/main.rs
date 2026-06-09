@@ -163,20 +163,32 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let _tray = TrayIconBuilder::new()
+    // 注意：去掉变量名前面的下划线，改用常规变量
+    let tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-        .icon_as_template(true)
         .menu(&menu)
+        // ✨ 关键修复：允许 macOS 左键触发点击事件，而不是直接弹出菜单
         .menu_on_left_click(false)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                show_main_window_centered(tray.app_handle());
+            match event {
+                // 处理左键抬起事件
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    show_main_window_centered(tray.app_handle());
+                }
+                // ✨ 关键修复：macOS 右键点击时，手动把菜单弹出来
+                TrayIconEvent::Click {
+                    button: MouseButton::Right,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    let _ = tray.popup_menu(tray.menu().unwrap());
+                }
+                _ => {}
             }
         })
         .on_menu_event(|app, event| {
@@ -191,6 +203,9 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
             }
         })
         .build(app)?;
+
+    // ✨ 关键修复：将 tray 实例保存在 Tauri 的管理状态中，防止函数结束时被 Drop 释放
+    app.manage(tray);
 
     Ok(())
 }
