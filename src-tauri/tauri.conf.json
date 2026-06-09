@@ -54,11 +54,6 @@
         "skipTaskbar": true
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/128x128.png",
-      "iconAsTemplate": true,
-      "tooltip": "TrayClip"
-    },
     "security": {
       "csp": null,
       "assetProtocol": {

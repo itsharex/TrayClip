@@ -13,7 +13,7 @@ use app_state::AppState;
 use parking_lot::{Mutex, RwLock};
 use tauri::{Emitter, Manager};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 fn apply_pending_restore(app: &tauri::AppHandle) {
@@ -163,32 +163,32 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let tray = app
-        .tray_by_id("main")
-        .ok_or_else(|| anyhow::anyhow!("tray icon 'main' not found"))?;
-
-    tray.set_menu(Some(menu))?;
-    tray.on_tray_icon_event(|tray, event| {
-        if let TrayIconEvent::Click {
-            button: MouseButton::Left,
-            button_state: MouseButtonState::Up,
-            ..
-        } = event
-        {
-            show_main_window_centered(tray.app_handle());
-        }
-    });
-    tray.on_menu_event(|app, event| {
-        match event.id().as_ref() {
-            "show" => {
-                show_main_window_centered(app);
+    let _tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .tooltip("TrayClip")
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window_centered(tray.app_handle());
             }
-            "quit" => {
-                app.exit(0);
+        })
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => {
+                    show_main_window_centered(app);
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
             }
-            _ => {}
-        }
-    });
+        })
+        .build(app)?;
 
     Ok(())
 }
@@ -266,6 +266,10 @@ fn main() {
             }
         }))
         .setup(|app| {
+            // Hide Dock icon on macOS — keep only the menu bar tray icon
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
             app.manage(state);
@@ -287,11 +291,6 @@ fn main() {
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
             setup_tray(app).context("failed to setup tray")?;
-
-            // Hide Dock icon on macOS — keep only the menu bar tray icon
-            // Must be called AFTER setup_tray, otherwise the tray icon won't appear
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
