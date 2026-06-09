@@ -144,18 +144,13 @@ fn show_main_window_centered(app: &tauri::AppHandle) {
             return;
         }
         if let Ok(Some(monitor)) = window.current_monitor() {
-            let scale = monitor.scale_factor();
             let size = monitor.size();
             let pos = monitor.position();
-            let monitor_x = pos.x as f64 / scale;
-            let monitor_y = pos.y as f64 / scale;
-            let logical_w = size.width as f64 / scale;
-            let logical_h = size.height as f64 / scale;
-            let win_w = 400.0;
-            let win_h = 500.0;
-            let x = monitor_x + (logical_w - win_w) / 2.0;
-            let y = monitor_y + (logical_h - win_h) / 2.0;
-            let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+            let win_w = 400;
+            let win_h = 500;
+            let x = pos.x + (size.width as i32 - win_w) / 2;
+            let y = pos.y + (size.height as i32 - win_h) / 2;
+            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }
         let _ = window.show();
         let _ = window.set_focus();

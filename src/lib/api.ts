@@ -27,7 +27,6 @@ export const getPermissions = () => invoke<PermissionState>("get_permissions");
 export const requestAccessibilityPermission = () => invoke<boolean>("request_accessibility_permission");
 export const hideWindow = () => invoke("hide_window");
 export const quitApp = () => invoke("quit_app");
-export const showMainWindow = () => invoke("show_main_window");
 export const toggleQuickPanel = () => invoke("toggle_quick_panel");
 export const hideQuickPanel = (pasteAfter = false) => invoke("hide_quick_panel", { pasteAfter });
 export const setDragging = (dragging: boolean) => invoke("set_dragging", { dragging });

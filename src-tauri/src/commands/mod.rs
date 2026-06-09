@@ -9,6 +9,8 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use crate::{app_state::AppState, clipboard, db, models::{AppSettings, BootstrapPayload, ClipGroup, ConfigPayload, HotkeySetting, ListClipsRequest, ListClipsResponse, PermissionState}};
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VK_CONTROL,
 };
@@ -334,7 +336,14 @@ pub fn hide_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
+    let _ = app.global_shortcut().unregister_all();
     app.exit(0);
+
+    // Force exit after a short delay to prevent zombie processes on macOS
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        std::process::exit(0);
+    });
 }
 
 pub fn position_quick_panel(window: &tauri::WebviewWindow, panel_position: &str) {
@@ -594,9 +603,11 @@ pub async fn check_update(current_version: String, installer_type: String) -> Re
     let info = tauri::async_runtime::spawn_blocking(move || {
         let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
 
-        let output = std::process::Command::new("curl")
-            .args(["-sL", "-H", "User-Agent: trayclip", &url])
-            .output()
+        let mut cmd = std::process::Command::new("curl");
+        cmd.args(["-sL", "-H", "User-Agent: trayclip", &url]);
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let output = cmd.output()
             .map_err(|e| format!("Failed to run curl: {}", e))?;
 
         if !output.status.success() {
@@ -639,6 +650,7 @@ fn detect_windows_install_type() -> &'static str {
             "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TrayClip",
             "/ve",
         ])
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .output();
 
     if let Ok(output) = nsis_check {
@@ -653,6 +665,7 @@ fn detect_windows_install_type() -> &'static str {
             "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{com.trayclip.app}",
             "/ve",
         ])
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .output();
 
     if let Ok(output) = msi_check {

@@ -15,7 +15,6 @@ import {
     recopyClip,
     restoreBackup,
     saveGroup,
-    showMainWindow,
     updateSettings,
 } from "@/lib/api";
 import { FALLBACK_BOOTSTRAP } from "@/lib/constants";
@@ -81,12 +80,14 @@ export function useAppData() {
         }
     }, []);
 
-    // Startup: load everything, then show window centered
+    // Startup: load everything, then show window
     useEffect(() => {
         void loadAll().finally(() => {
             initialLoadDone.current = true;
             setLoaded(true);
-            void showMainWindow();
+            const win = getCurrentWindow();
+            void win.show();
+            void win.setFocus();
         });
     }, [loadAll]);
 
