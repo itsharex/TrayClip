@@ -165,10 +165,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
 
     let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-
-        #[cfg(target_os = "macos")]
         .icon_as_template(true)
-
         .menu(&menu)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
