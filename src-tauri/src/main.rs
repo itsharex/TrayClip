@@ -165,7 +165,6 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
 
     let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-        .icon_as_template(true)
         .menu(&menu)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
@@ -267,6 +266,10 @@ fn main() {
             }
         }))
         .setup(|app| {
+            // Hide Dock icon on macOS — keep only the menu bar tray icon
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
             app.manage(state);
@@ -288,10 +291,6 @@ fn main() {
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
             setup_tray(app).context("failed to setup tray")?;
-
-            // Hide Dock icon on macOS — keep only the menu bar tray icon
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
