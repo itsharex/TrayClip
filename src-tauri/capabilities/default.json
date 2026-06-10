@@ -5,6 +5,10 @@
   "permissions": [
     "core:default",
     "core:app:default",
+    "core:tray:allow-new",
+    "core:tray:allow-set-icon",
+    "core:tray:allow-set-tooltip",
+    "core:tray:allow-set-visible",
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-show",
