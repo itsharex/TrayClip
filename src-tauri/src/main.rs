@@ -290,8 +290,8 @@ fn main() {
             setup_tray(app).context("failed to setup tray")?;
 
             // Hide Dock icon on macOS — keep only the menu bar tray icon
-//             #[cfg(target_os = "macos")]
-//             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             if let Some(window) = app.get_webview_window("main") {
                 let w = window.clone();
