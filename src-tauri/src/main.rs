@@ -11,14 +11,10 @@ mod paths;
 use anyhow::Context;
 use app_state::AppState;
 use parking_lot::{Mutex, RwLock};
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-
-struct TrayState {
-    _tray: TrayIcon,
-}
 
 fn apply_pending_restore(app: &tauri::AppHandle) {
     let resolver = app.path();
@@ -27,9 +23,7 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
     // macOS: only app_data_dir() (resource_dir is inside .app bundle, replaced on update).
     // Windows/Linux: resource_dir()/data first, app_data_dir() as fallback.
     #[cfg(target_os = "macos")]
-    let default_root_dir = resolver
-        .app_data_dir()
-        .ok()
+    let default_root_dir = resolver.app_data_dir().ok()
         .filter(|dir| std::fs::create_dir_all(dir).is_ok());
 
     #[cfg(not(target_os = "macos"))]
@@ -41,42 +35,28 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
         let Ok(install_dir) = install_dir else { return };
         let candidate_dirs = [
             install_dir.join("data"),
-            resolver
-                .app_data_dir()
-                .unwrap_or_else(|_| install_dir.clone()),
+            resolver.app_data_dir().unwrap_or_else(|_| install_dir.clone()),
         ];
         candidate_dirs
             .iter()
             .find(|dir| dir.join("trayclip.db").exists())
             .cloned()
-            .or_else(|| {
-                candidate_dirs
-                    .iter()
-                    .find(|dir| std::fs::create_dir_all(dir).is_ok())
-                    .cloned()
-            })
+            .or_else(|| candidate_dirs.iter().find(|dir| std::fs::create_dir_all(dir).is_ok()).cloned())
     };
 
-    let Some(default_root_dir) = default_root_dir else {
-        return;
-    };
+    let Some(default_root_dir) = default_root_dir else { return };
 
     // Check for marker in app_data_dir (writable) first, then root_dir (legacy)
-    let marker = resolver
-        .app_data_dir()
-        .ok()
+    let marker = resolver.app_data_dir().ok()
         .map(|d| d.join(".restore-pending"))
         .filter(|p| p.exists())
         .unwrap_or_else(|| default_root_dir.join(".restore-pending"));
-    let Ok(marker_content) = std::fs::read_to_string(&marker) else {
-        return;
-    };
+    let Ok(marker_content) = std::fs::read_to_string(&marker) else { return };
 
     let mut lines = marker_content.lines();
     let staging_path = lines.next().unwrap_or("").to_string();
     // Second line is the root_dir written by restore_backup (uses the same AppPaths::resolve)
-    let root_dir = lines
-        .next()
+    let root_dir = lines.next()
         .map(std::path::PathBuf::from)
         .filter(|p| p.exists())
         .unwrap_or(default_root_dir);
@@ -87,11 +67,7 @@ fn apply_pending_restore(app: &tauri::AppHandle) {
         return;
     }
 
-    eprintln!(
-        "[restore] staging_dir={}, root_dir={}",
-        staging_dir.display(),
-        root_dir.display()
-    );
+    eprintln!("[restore] staging_dir={}, root_dir={}", staging_dir.display(), root_dir.display());
 
     // Replace database
     let src_db = staging_dir.join("trayclip.db");
@@ -174,8 +150,7 @@ fn show_main_window_centered(app: &tauri::AppHandle) {
             let win_h = 500;
             let x = pos.x + (size.width as i32 - win_w) / 2;
             let y = pos.y + (size.height as i32 - win_h) / 2;
-            let _ =
-                window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }
         let _ = window.show();
         let _ = window.set_focus();
@@ -183,14 +158,12 @@ fn show_main_window_centered(app: &tauri::AppHandle) {
     }
 }
 
-fn setup_tray(app: &tauri::App) -> anyhow::Result<TrayIcon> {
+fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let show_item = MenuItemBuilder::new("显示窗口").id("show").build(app)?;
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
-    let menu = MenuBuilder::new(app)
-        .items(&[&show_item, &quit_item])
-        .build()?;
+    let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .icon_as_template(false)
         .menu(&menu)
@@ -205,18 +178,20 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<TrayIcon> {
                 show_main_window_centered(tray.app_handle());
             }
         })
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "show" => {
-                show_main_window_centered(app);
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => {
+                    show_main_window_centered(app);
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
             }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
         })
         .build(app)?;
 
-    Ok(tray)
+    Ok(())
 }
 
 pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()> {
@@ -230,10 +205,7 @@ pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()
     };
 
     for hotkey in &hotkeys {
-        let Ok(shortcut) = hotkey
-            .hotkey_value
-            .parse::<tauri_plugin_global_shortcut::Shortcut>()
-        else {
+        let Ok(shortcut) = hotkey.hotkey_value.parse::<tauri_plugin_global_shortcut::Shortcut>() else {
             continue;
         };
         let action = hotkey.action_key.clone();
@@ -303,9 +275,7 @@ fn main() {
                 #[cfg(target_os = "linux")]
                 {
                     let mut cb = state.clipboard.lock();
-                    if let Ok(Some(signature)) =
-                        clipboard::peek_signature_with_state(&state.paths, &mut cb)
-                    {
+                    if let Ok(Some(signature)) = clipboard::peek_signature_with_state(&state.paths, &mut cb) {
                         *state.last_clip_signature.lock() = Some(signature);
                     }
                 }
@@ -317,8 +287,7 @@ fn main() {
                 }
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
-            let tray = setup_tray(app).context("failed to setup tray")?;
-            app.manage(TrayState { _tray: tray });
+            setup_tray(app).context("failed to setup tray")?;
 
             // Hide Dock icon on macOS — keep only the menu bar tray icon
             #[cfg(target_os = "macos")]
@@ -374,13 +343,9 @@ fn main() {
                     let want_enabled = state.settings.read().launch_on_startup;
                     let currently_enabled = launch.is_enabled().unwrap_or(false);
                     if want_enabled && !currently_enabled {
-                        let _ = launch
-                            .enable()
-                            .map_err(|e| eprintln!("[autostart] enable failed: {}", e));
+                        let _ = launch.enable().map_err(|e| eprintln!("[autostart] enable failed: {}", e));
                     } else if !want_enabled && currently_enabled {
-                        let _ = launch
-                            .disable()
-                            .map_err(|e| eprintln!("[autostart] disable failed: {}", e));
+                        let _ = launch.disable().map_err(|e| eprintln!("[autostart] disable failed: {}", e));
                     }
                 });
             }
