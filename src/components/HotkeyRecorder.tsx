@@ -7,8 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
 
 const DEFAULT_HOTKEYS: Record<HotkeyActionKey, string> = {
-  open_main_window: isMac ? "Ctrl+Shift+P" : "Ctrl+Shift+Space",
-  open_quick_panel: isMac ? "Ctrl+P" : "Ctrl+Shift+V",
+  open_main_window: isMac ? "Ctrl+P" : "Ctrl+Shift+V",
 };
 
 const SPECIAL_KEYS: Record<string, string> = { " ": "Space" };
@@ -80,27 +79,27 @@ export function HotkeyRecorder({ actionKey, currentValue, onSave }: HotkeyRecord
   const handleBlur = () => { setTimeout(() => stopRecording(true), 150); };
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className={`cursor-pointer rounded-md px-2 py-1 text-center font-mono text-[11px] transition-colors ${
-              recording
-                ? "bg-primary/10 text-primary ring-1 ring-primary/30"
-                : "bg-muted text-foreground/70 hover:text-foreground"
-            }`}
-            tabIndex={0}
-            onClick={() => { recordingRef.current = true; setRecording(true); setPreview(t.pressHotkey); void unregisterAllShortcuts(); }}
-            onBlur={handleBlur}
-          >
-            {recording ? preview : formatHotkeyDisplay(currentValue)}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p className="text-xs">{recording ? t.pressHotkey : t.restoreDefault}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+                className={`cursor-pointer rounded-md px-2 py-1 text-center font-mono text-[11px] transition-colors ${
+                    recording
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                        : "bg-muted text-foreground/70 hover:text-foreground"
+                }`}
+                tabIndex={0}
+                onClick={() => { recordingRef.current = true; setRecording(true); setPreview(t.pressHotkey); void unregisterAllShortcuts(); }}
+                onBlur={handleBlur}
+            >
+              {recording ? preview : formatHotkeyDisplay(currentValue)}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">{recording ? t.pressHotkey : t.restoreDefault}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
   );
 }
 

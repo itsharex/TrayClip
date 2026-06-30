@@ -11,7 +11,7 @@ mod paths;
 use anyhow::Context;
 use app_state::AppState;
 use parking_lot::{Mutex, RwLock};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -129,7 +129,6 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
         settings: RwLock::new(settings),
         permissions: RwLock::new(models::PermissionState::default()),
         last_clip_signature: Mutex::new(None),
-        is_dragging: std::sync::Arc::new(Mutex::new(false)),
         #[cfg(target_os = "windows")]
         previous_hwnd: Mutex::new(0),
         #[cfg(target_os = "linux")]
@@ -137,20 +136,55 @@ fn build_state(app: &tauri::AppHandle) -> anyhow::Result<AppState> {
     })
 }
 
-fn show_main_window_centered(app: &tauri::AppHandle) {
+fn resolve_main_window_position(
+    panel_position: &str,
+    monitor_pos: PhysicalPosition<i32>,
+    monitor_size: PhysicalSize<u32>,
+    cursor_pos: Option<PhysicalPosition<f64>>,
+) -> PhysicalPosition<i32> {
+    const WIN_W: i32 = 400;
+    const WIN_H: i32 = 500;
+
+    if panel_position == "follow_mouse" {
+        if let Some(cursor) = cursor_pos {
+            let max_x = monitor_pos.x + monitor_size.width as i32 - WIN_W;
+            let max_y = monitor_pos.y + monitor_size.height as i32 - WIN_H;
+            let x = (cursor.x as i32 + 12).clamp(monitor_pos.x, max_x);
+            let y = (cursor.y as i32 + 12).clamp(monitor_pos.y, max_y);
+            return PhysicalPosition { x, y };
+        }
+    }
+
+    PhysicalPosition {
+        x: monitor_pos.x + (monitor_size.width as i32 - WIN_W) / 2,
+        y: monitor_pos.y + (monitor_size.height as i32 - WIN_H) / 2,
+    }
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         // If already visible and focused, do nothing
         if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
             return;
         }
+        #[cfg(target_os = "windows")]
+        {
+            let state = app.state::<AppState>();
+            let hwnd = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+            if !hwnd.is_null() {
+                *state.previous_hwnd.lock() = hwnd as usize;
+            }
+        }
         if let Ok(Some(monitor)) = window.current_monitor() {
-            let size = monitor.size();
-            let pos = monitor.position();
-            let win_w = 400;
-            let win_h = 500;
-            let x = pos.x + (size.width as i32 - win_w) / 2;
-            let y = pos.y + (size.height as i32 - win_h) / 2;
-            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+            let state = app.state::<AppState>();
+            let panel_position = state.settings.read().panel_position.clone();
+            let position = resolve_main_window_position(
+                &panel_position,
+                *monitor.position(),
+                *monitor.size(),
+                window.cursor_position().ok(),
+            );
+            let _ = window.set_position(tauri::Position::Physical(position));
         }
         let _ = window.show();
         let _ = window.set_focus();
@@ -175,13 +209,13 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                 ..
             } = event
             {
-                show_main_window_centered(tray.app_handle());
+                show_main_window(tray.app_handle());
             }
         })
         .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "show" => {
-                    show_main_window_centered(app);
+                    show_main_window(app);
                 }
                 "quit" => {
                     app.exit(0);
@@ -205,43 +239,18 @@ pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()
     };
 
     for hotkey in &hotkeys {
+        if hotkey.action_key != "open_main_window" {
+            continue;
+        }
         let Ok(shortcut) = hotkey.hotkey_value.parse::<tauri_plugin_global_shortcut::Shortcut>() else {
             continue;
         };
-        let action = hotkey.action_key.clone();
         let h = handle.clone();
         let _ = handle.global_shortcut().on_shortcut(
             shortcut,
             move |_app, _shortcut, event| {
-                if event.state != tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    return;
-                }
-                match action.as_str() {
-                    "open_main_window" => {
-                        show_main_window_centered(&h);
-                    }
-                    "open_quick_panel" => {
-                        if let Some(window) = h.get_webview_window("quick-panel") {
-                            if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
-                                let _ = window.hide();
-                            } else {
-                                let app_state = h.state::<AppState>();
-                                #[cfg(target_os = "windows")]
-                                {
-                                    let hwnd = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
-                                    if !hwnd.is_null() {
-                                        *app_state.previous_hwnd.lock() = hwnd as usize;
-                                    }
-                                }
-                                let panel_position = app_state.settings.read().panel_position.clone();
-                                commands::position_quick_panel(&window, &panel_position);
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                                let _ = window.emit("focus-quick-search", ());
-                            }
-                        }
-                    }
-                    _ => {}
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    show_main_window(&h);
                 }
             },
         );
@@ -261,14 +270,15 @@ fn main() {
             None,
         ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.webview_windows().get("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            show_main_window(app);
         }))
         .setup(|app| {
             apply_pending_restore(app.handle());
             let state = build_state(&app.handle()).context("failed to initialize app state")?;
+            {
+                let conn = state.pool.get().context("failed to get db connection for hotkey migration")?;
+                db::migrate_quick_panel_hotkey_to_main_window(&conn)?;
+            }
             app.manage(state);
             {
                 let state = app.state::<AppState>();
@@ -301,21 +311,6 @@ fn main() {
                         let _ = w.emit("close-requested", ());
                     }
                 });
-            }
-
-            {
-                let state = app.state::<AppState>();
-                let is_dragging = state.is_dragging.clone();
-                if let Some(qp) = app.get_webview_window("quick-panel") {
-                    let w = qp.clone();
-                    qp.on_window_event(move |event| {
-                        if let tauri::WindowEvent::Focused(false) = event {
-                            if !*is_dragging.lock() {
-                                let _ = w.hide();
-                            }
-                        }
-                    });
-                }
             }
 
             // Auto-hide url-toast window on focus loss
@@ -373,9 +368,6 @@ fn main() {
             commands::request_accessibility_permission,
             commands::hide_window,
             commands::quit_app,
-            commands::toggle_quick_panel,
-            commands::hide_quick_panel,
-            commands::set_dragging,
             commands::simulate_paste,
             commands::check_update,
             commands::get_installer_type,
@@ -388,4 +380,35 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running trayclip");
+}
+
+#[cfg(test)]
+mod tests {
+    use tauri::{PhysicalPosition, PhysicalSize};
+
+    use super::resolve_main_window_position;
+
+    #[test]
+    fn resolve_main_window_position_centers_when_panel_position_is_center() {
+        let result = resolve_main_window_position(
+            "center",
+            PhysicalPosition { x: 100, y: 50 },
+            PhysicalSize { width: 1920, height: 1080 },
+            None,
+        );
+
+        assert_eq!(result, PhysicalPosition { x: 860, y: 340 });
+    }
+
+    #[test]
+    fn resolve_main_window_position_follows_mouse_and_clamps_to_monitor_bounds() {
+        let result = resolve_main_window_position(
+            "follow_mouse",
+            PhysicalPosition { x: 0, y: 0 },
+            PhysicalSize { width: 400, height: 500 },
+            Some(PhysicalPosition { x: 390.0, y: 490.0 }),
+        );
+
+        assert_eq!(result, PhysicalPosition { x: 0, y: 0 });
+    }
 }

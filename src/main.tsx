@@ -2,7 +2,6 @@ import ReactDOM from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { I18nProvider } from "./lib/i18n";
 import App from "./App";
-import QuickPanel from "./QuickPanel";
 import UrlToast from "./UrlToast";
 import "./index.css";
 
@@ -20,11 +19,7 @@ document.addEventListener("contextmenu", (e) => {
     }
 });
 
-const Root = label === "quick-panel"
-    ? <QuickPanel />
-    : label === "url-toast"
-        ? <UrlToast />
-        : <App />;
+const Root = label === "url-toast" ? <UrlToast /> : <App />;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <I18nProvider>

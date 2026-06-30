@@ -28,19 +28,6 @@
         "maxHeight": 500
       },
       {
-        "title": "TrayClip Quick Panel",
-        "label": "quick-panel",
-        "width": 360,
-        "height": 460,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "backgroundColor": "#00000000",
-        "visible": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true
-      },
-      {
         "title": "TrayClip URL Toast",
         "label": "url-toast",
         "width": 220,

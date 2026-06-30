@@ -5,7 +5,7 @@
 </div>
 
 <p align="center">
-  TrayClip is a local-only clipboard manager focused on history, groups, pinning, hotkeys, and a quick panel. No online services are required.
+  TrayClip is a local-only clipboard manager focused on history, groups, pinning, hotkeys, and fast recall from the main window. No online services are required.
 </p>
 
 ---
@@ -31,8 +31,7 @@ English | [简体中文](README_ZH.md)
 - Local-only storage, data stays on your machine
 - Clipboard history with plain text, rich text, images, and file paths
 - Group management, pinning, and auto cleanup by retention limit
-- Quick Panel: a standalone floating window with hotkey activation, search, and fast copy
-- Dedicated Home, Settings, About, and Help content for daily use and onboarding
+- Main window: hotkey activation, search, and fast copy in one place
 - Light / dark theme toggle and interface language switching
 - System tray resident behavior with configurable close action
 - Data backup and restore for migration or reinstall
@@ -42,20 +41,19 @@ English | [简体中文](README_ZH.md)
 
 - Retention limit: 50 to 10000
 - Pause clipboard capture
-- Quick paste (Windows)
+- Quick paste (Windows, paste back to the previous app after copying)
 - URL toast
 - Launch on startup
 - Close behavior: hide to tray / exit directly / ask every time
-- Quick panel position: center of screen / follow mouse
+- Window position: center of screen / follow mouse
 - AI enhancement: API URL, API Key, model name, AI translation
-- Hotkeys: customizable for the main window and quick panel
+- Hotkeys: customizable for the main window
 
 ## Hotkeys
 
 | Function | Windows / Linux | macOS |
 | --- | --- | --- |
-| Open main window | `Ctrl+Shift+Space` | `⌃+⇧+P` |
-| Open quick panel | `Ctrl+Shift+V` | `⌃+P` |
+| Open main window | `Ctrl+Shift+V` | `⌃+P` |
 
 Hotkeys can be customized in Settings.
 

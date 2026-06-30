@@ -1,12 +1,11 @@
 # TrayClip Help
 
 ## Overview
-TrayClip is a local clipboard manager built around history, grouping, pinning, quick search, and fast copy. It also includes a quick panel, theme switching, language switching, backup and restore, and optional AI enhancement settings.
+TrayClip is a local clipboard manager built around history, grouping, pinning, quick search, and fast copy. It also includes theme switching, language switching, backup and restore, and optional AI enhancement settings.
 
 ## Window Operations
 - Main window: open it from the system tray icon, tray menu, or a global hotkey.
-- Quick panel: use this lightweight floating window for quick search and copy. Press `Esc` or click elsewhere to close it.
-- Drag to move: both windows can be dragged by their top area.
+- Window position: the main window can open centered on the screen or follow the mouse, based on Settings.
 - Close behavior: closing the main window normally hides it to the tray, and this can be changed in Settings.
 
 ## Clipboard Records
@@ -31,17 +30,17 @@ TrayClip is a local clipboard manager built around history, grouping, pinning, q
 - Double-click the record content area to copy quickly.
 - Right-click a record to open the context menu.
 - `Esc` clears search first; if search is already empty, it hides the window.
-- The quick panel auto-selects the first item on open, so `Enter` can copy immediately.
+- The main window auto-selects the first visible item on open, so `Enter` can copy immediately.
 
 ## Settings
-- Hotkeys: customize the hotkeys for the main window and quick panel, then restore defaults when needed.
+- Hotkeys: customize the main window hotkey, then restore the default when needed.
 - Retention limit: set the maximum number of retained records from 50 to 10000.
 - Pause capture: temporarily stop clipboard capture.
-- Quick paste: Windows only, automatically paste to the previous app window after copying from the quick panel.
+- Quick paste: Windows only, automatically paste to the previous app window after copying from the main window.
 - URL toast: show a toast notification when copied content contains a URL.
 - Launch on startup: start TrayClip automatically when the system starts.
 - Close behavior: choose hide to tray, exit directly, or ask every time.
-- Quick panel position: choose screen center or follow mouse.
+- Window position: choose screen center or follow mouse.
 - Theme and language: switch light/dark theme and interface language from the title bar.
 - Data backup: export all records, groups, and settings as a ZIP backup.
 - Data restore: import a previously exported ZIP backup. This replaces all current data and restarts the app.
@@ -52,5 +51,5 @@ TrayClip is a local clipboard manager built around history, grouping, pinning, q
 The About page shows the version, storage location, supported platforms, license, and update checker.
 
 ## Files
-- `README.md` and `README_EN.md` cover the project overview and usage at a glance.
-- `help.md` and `help.zh.md` provide the full help reference for English and Chinese readers.
+- `README.md` and `README_ZH.md` cover the project overview and usage at a glance.
+- `HELP.md` and `HELP_ZH.md` provide the full help reference for English and Chinese readers.

@@ -32,10 +32,12 @@ src-tauri/gen/
 # Agent / tooling
 .claude/
 .codex/
-agent.md
+AGENTS.md
 
 # Dev docs (PRD, specs, data models)
 docs/
 openspec/
 .superpowers/
 .gstack/
+.comet/
+.codegraph/

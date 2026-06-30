@@ -1,4 +1,3 @@
-use std::sync::Arc;
 #[cfg(target_os = "linux")]
 use arboard::Clipboard;
 use parking_lot::{Mutex, RwLock};
@@ -44,7 +43,6 @@ pub struct AppState {
     pub settings: RwLock<AppSettings>,
     pub permissions: RwLock<PermissionState>,
     pub last_clip_signature: Mutex<Option<String>>,
-    pub is_dragging: Arc<Mutex<bool>>,
     #[cfg(target_os = "windows")]
     pub previous_hwnd: Mutex<usize>,
     #[cfg(target_os = "linux")]

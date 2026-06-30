@@ -12,9 +12,9 @@ export const en: typeof zh = {
   about: "About",
   all: "All",
   copy: "Copy",
+  apply: "Apply",
   pin: "Pin",
   unpin: "Unpin",
-  pinned: "Pinned",
 
   toggleTheme: "Toggle theme",
   toggleLang: "Switch language",
@@ -33,7 +33,6 @@ export const en: typeof zh = {
     file_paths: "File paths",
   },
 
-  contentTruncated: "Content truncated",
   moreFiles: (n: number) => `and ${n} more files`,
   emptyRecords: "No records",
 
@@ -45,14 +44,9 @@ export const en: typeof zh = {
   hideToTray: "Hide to tray",
   exitApp: "Exit",
   confirmDeleteGroup: (name: string) => `Delete group "${name}"? Records will be moved to ungrouped.`,
-  groupDeleted: "Group deleted",
-  groupNameExists: "Group name already exists",
   confirmClearHistory: "Clear all history? Pinned records will be kept. This cannot be undone.",
-  historyCleared: "History cleared",
   confirmDeleteClip: "Delete this record? This cannot be undone.",
-  clipDeleted: "Record deleted",
   copiedToClipboard: "Copied to clipboard",
-  operationFailed: "Operation failed, please try again",
 
   aboutTitle: "About TrayClip",
   aboutDesc: "TrayClip is a local clipboard manager focused on history, groups, pinning, and quick actions.",
@@ -72,11 +66,9 @@ export const en: typeof zh = {
   pauseCapture: "Pause clipboard capture",
   quickPaste: "Quick paste",
   urlToast: "URL toast",
-  urlToastHint: "Show a toast when copied content contains a URL",
   openLink: "Open",
   backup: "Backup",
   restore: "Restore",
-  backupSuccess: "Backup successful",
   confirmRestore: "Restore will replace all data (records, groups, settings). The app will restart. Continue?",
   backupData: "Data backup",
   clearHistory: "Clear history",
@@ -87,16 +79,13 @@ export const en: typeof zh = {
   hideToTrayRecommended: "Hide to tray (recommended)",
   exitDirectly: "Exit directly",
   askEveryTime: "Ask every time",
-  panelPosition: "Quick panel position",
+  panelPosition: "Window position",
   centerScreen: "Center of screen",
   followMouse: "Follow mouse",
   hotkeys: "Hotkeys",
   openMainWindow: "Open main window",
-  openQuickPanel: "Open quick panel",
   restoreDefault: "Restore default",
   pressHotkey: "Press hotkey...",
-
-  quickPanelSearch: "Search clipboard...",
 
   // AI Enhancement
   enableAi: "Enable AI Enhancement",
@@ -117,7 +106,6 @@ export const en: typeof zh = {
 
   // Translate
   translate: "Translate",
-  translateTarget: "Target language",
   translateBtn: "Translate",
   translating: "Translating...",
   translateFailed: "Translation failed",

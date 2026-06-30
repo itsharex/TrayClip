@@ -2,7 +2,6 @@ use std::io::{Read as _, Write as _};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri::Position;
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
@@ -15,10 +14,17 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, VK_CONTROL,
 };
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
+use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
 
 fn runtime_error(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+fn resolve_hide_window_action(paste_after: bool, previous_hwnd: usize) -> Option<usize> {
+    if paste_after && previous_hwnd != 0 {
+        return Some(previous_hwnd);
+    }
+    None
 }
 
 fn recopy_clip_impl(state: &State<'_, AppState>, clip_id: i64) -> Result<(), String> {
@@ -135,10 +141,13 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
 
 #[tauri::command]
 pub fn update_settings(app: AppHandle, state: State<'_, AppState>, payload: AppSettings) -> Result<AppSettings, String> {
-    let next_settings = {
+    let (next_settings, removed_images) = {
         let conn = state.pool.get().map_err(runtime_error)?;
         db::save_settings(&conn, &payload).map_err(runtime_error)?
     };
+    for path in removed_images {
+        let _ = std::fs::remove_file(path);
+    }
     // Sync launch_on_startup to OS autostart
     {
         let launch = app.autolaunch();
@@ -151,6 +160,7 @@ pub fn update_settings(app: AppHandle, state: State<'_, AppState>, payload: AppS
         }
     }
     *state.settings.write() = next_settings.clone();
+    let _ = app.emit("clips://updated", ());
     Ok(next_settings)
 }
 
@@ -162,6 +172,9 @@ pub fn get_hotkeys(state: State<'_, AppState>) -> Result<Vec<HotkeySetting>, Str
 
 #[tauri::command]
 pub fn update_hotkey_setting(state: State<'_, AppState>, action_key: String, hotkey_value: String) -> Result<HotkeySetting, String> {
+    if action_key != "open_main_window" {
+        return Err("unsupported hotkey action".into());
+    }
     let conn = state.pool.get().map_err(runtime_error)?;
     db::save_hotkey(&conn, &action_key, &hotkey_value).map_err(runtime_error)
 }
@@ -327,9 +340,18 @@ pub fn request_accessibility_permission(_state: State<'_, AppState>) -> Result<b
 }
 
 #[tauri::command]
-pub fn hide_window(app: AppHandle) -> Result<(), String> {
+pub fn hide_window(app: AppHandle, state: State<'_, AppState>, paste_after: Option<bool>) -> Result<(), String> {
     if let Some(window) = app.webview_windows().get("main").cloned() {
         let _ = window.hide();
+    }
+    #[cfg(target_os = "windows")]
+    if let Some(hwnd) = resolve_hide_window_action(paste_after.unwrap_or(false), *state.previous_hwnd.lock()) {
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            unsafe { SetForegroundWindow(hwnd as *mut _) };
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let _ = simulate_paste();
+        });
     }
     Ok(())
 }
@@ -344,86 +366,6 @@ pub fn quit_app(app: AppHandle) {
         std::thread::sleep(std::time::Duration::from_millis(500));
         std::process::exit(0);
     });
-}
-
-pub fn position_quick_panel(window: &tauri::WebviewWindow, panel_position: &str) {
-    let win_w = 360;
-    let win_h = 460;
-
-    if panel_position == "follow_mouse" {
-        if let Ok(pos) = window.cursor_position() {
-            let mut x = pos.x as i32 + 12;
-            let mut y = pos.y as i32 + 12;
-            // Clamp to monitor bounds so the panel stays on screen
-            if let Ok(Some(monitor)) = window.current_monitor() {
-                let mp = monitor.position();
-                let ms = monitor.size();
-                x = x.clamp(mp.x, mp.x + ms.width as i32 - win_w);
-                y = y.clamp(mp.y, mp.y + ms.height as i32 - win_h);
-            }
-            let _ = window.set_position(Position::Physical(tauri::PhysicalPosition { x, y }));
-            return;
-        }
-    }
-    // center: center on current monitor
-    if let Ok(Some(monitor)) = window.current_monitor() {
-        let size = monitor.size();
-        let pos = monitor.position();
-        let x = pos.x + (size.width as i32 - win_w) / 2;
-        let y = pos.y + (size.height as i32 - win_h) / 2;
-        let _ = window.set_position(Position::Physical(tauri::PhysicalPosition { x, y }));
-    }
-}
-
-#[tauri::command]
-pub fn toggle_quick_panel(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    if let Some(window) = app.webview_windows().get("quick-panel").cloned() {
-        if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                let hwnd = unsafe { GetForegroundWindow() };
-                if !hwnd.is_null() {
-                    *state.previous_hwnd.lock() = hwnd as usize;
-                }
-            }
-            let panel_position = state.settings.read().panel_position.clone();
-            position_quick_panel(&window, &panel_position);
-            let _ = window.show();
-            let _ = window.set_focus();
-            let _ = window.emit("focus-quick-search", ());
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn hide_quick_panel(app: AppHandle, _state: State<'_, AppState>, paste_after: bool) -> Result<(), String> {
-    if let Some(window) = app.webview_windows().get("quick-panel").cloned() {
-        let _ = window.hide();
-    }
-    if paste_after {
-        #[cfg(target_os = "windows")]
-        {
-            let hwnd = *_state.previous_hwnd.lock();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(300));
-                if hwnd != 0 {
-                    unsafe { SetForegroundWindow(hwnd as *mut _); }
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                }
-                let _ = simulate_paste();
-            });
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn set_dragging(state: State<'_, AppState>, dragging: bool) -> Result<(), String> {
-    *state.is_dragging.lock() = dragging;
-    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -575,6 +517,21 @@ pub async fn bing_translate(text: String, from: String, to: String) -> Result<St
         .unwrap_or("")
         .to_string();
     Ok(translated)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_hide_window_action;
+
+    #[test]
+    fn resolve_hide_window_action_returns_hide_only_when_paste_disabled() {
+        assert_eq!(resolve_hide_window_action(false, 123), None);
+    }
+
+    #[test]
+    fn resolve_hide_window_action_returns_previous_hwnd_when_paste_enabled() {
+        assert_eq!(resolve_hide_window_action(true, 456), Some(456));
+    }
 }
 
 const GITHUB_REPO: &str = "Heyiki/TrayClip";

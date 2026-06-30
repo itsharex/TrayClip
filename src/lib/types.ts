@@ -41,7 +41,7 @@ export interface AppSettings {
   llm_ai_translate: boolean;
 }
 
-export type HotkeyActionKey = "open_main_window" | "open_quick_panel";
+export type HotkeyActionKey = "open_main_window";
 
 export interface HotkeySetting {
   action_key: HotkeyActionKey;

@@ -9,6 +9,10 @@ use crate::app_state::{DbPool, SqliteConnectionManager};
 use crate::{models::{AppSettings, ClipContentType, ClipGroup, ClipRecord, HotkeySetting, ListClipsRequest, ListClipsResponse, NewClipRecord}, paths::AppPaths};
 
 pub const SCHEMA_VERSION: i64 = 1;
+#[cfg(target_os = "macos")]
+pub const DEFAULT_MAIN_WINDOW_HOTKEY: &str = "Ctrl+P";
+#[cfg(not(target_os = "macos"))]
+pub const DEFAULT_MAIN_WINDOW_HOTKEY: &str = "Ctrl+Shift+V";
 
 pub fn create_pool(paths: &AppPaths) -> anyhow::Result<DbPool> {
     let manager = SqliteConnectionManager::file(&paths.db_path);
@@ -136,28 +140,36 @@ fn ensure_defaults(conn: &Connection) -> anyhow::Result<()> {
         [],
     )?;
 
-    #[cfg(target_os = "macos")]
-    {
-        conn.execute(
-            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Ctrl+Shift+P')",
+    conn.execute(
+        "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', ?1)",
+        [DEFAULT_MAIN_WINDOW_HOTKEY],
+    )?;
+    Ok(())
+}
+
+pub fn migrate_quick_panel_hotkey_to_main_window(conn: &Connection) -> anyhow::Result<()> {
+    let quick_panel_hotkey: Option<String> = conn
+        .query_row(
+            "SELECT hotkey_value FROM hotkey_settings WHERE action_key = 'open_quick_panel'",
             [],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    if let Some(hotkey_value) = quick_panel_hotkey {
+        conn.execute("DELETE FROM hotkey_settings WHERE action_key = 'open_main_window'", [])?;
+        conn.execute(
+            "INSERT INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', ?1)",
+            [hotkey_value],
         )?;
+    } else {
         conn.execute(
-            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Ctrl+P')",
-            [],
+            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', ?1)",
+            [DEFAULT_MAIN_WINDOW_HOTKEY],
         )?;
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        conn.execute(
-            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_main_window', 'Ctrl+Shift+Space')",
-            [],
-        )?;
-        conn.execute(
-            "INSERT OR IGNORE INTO hotkey_settings(action_key, hotkey_value) VALUES('open_quick_panel', 'Ctrl+Shift+V')",
-            [],
-        )?;
-    }
+
+    conn.execute("DELETE FROM hotkey_settings WHERE action_key = 'open_quick_panel'", [])?;
     Ok(())
 }
 
@@ -203,7 +215,7 @@ pub fn load_settings(conn: &Connection) -> anyhow::Result<AppSettings> {
     result.context("failed to load app settings")
 }
 
-pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Result<AppSettings> {
+pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Result<(AppSettings, Vec<String>)> {
     let llm_config = LlmConfigStore {
         enabled: settings.llm_enabled,
         api_url: settings.llm_api_url.clone(),
@@ -216,7 +228,8 @@ pub fn save_settings(conn: &Connection, settings: &AppSettings) -> anyhow::Resul
         "UPDATE app_settings SET retention_limit = ?1, launch_on_startup = ?2, pause_capture = ?3, locale = ?4, accessibility_prompted = ?5, close_behavior = ?6, panel_position = ?7, quick_paste = ?8, url_toast = ?9, llm_config = ?10 WHERE id = 1",
         params![settings.retention_limit, settings.launch_on_startup as i64, settings.pause_capture as i64, settings.locale, settings.accessibility_prompted as i64, settings.close_behavior, settings.panel_position, settings.quick_paste as i64, settings.url_toast as i64, llm_json],
     )?;
-    load_settings(conn)
+    let removed_images = cleanup_overflow(conn, settings.retention_limit)?;
+    Ok((load_settings(conn)?, removed_images))
 }
 
 pub fn list_hotkeys(conn: &Connection) -> anyhow::Result<Vec<HotkeySetting>> {
@@ -451,8 +464,8 @@ pub fn cleanup_overflow(conn: &Connection, retention_limit: i64) -> anyhow::Resu
 
     let mut statement = conn.prepare("SELECT image_path FROM clips WHERE is_pinned = 0 ORDER BY position_updated_at ASC LIMIT ?1")?;
     let image_paths: Vec<String> = statement
-        .query_map([overflow], |row| row.get(0))?
-        .filter_map(|r| r.ok())
+        .query_map([overflow], |row| row.get::<_, Option<String>>(0))?
+        .filter_map(|r| r.ok().flatten())
         .collect();
 
     conn.execute(
@@ -469,4 +482,167 @@ pub fn mark_clip_used(conn: &Connection, clip_id: i64) -> anyhow::Result<()> {
         params![Utc::now().to_rfc3339(), clip_id],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_app_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE app_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                retention_limit INTEGER NOT NULL,
+                launch_on_startup INTEGER NOT NULL,
+                pause_capture INTEGER NOT NULL,
+                locale TEXT NOT NULL,
+                accessibility_prompted INTEGER NOT NULL,
+                close_behavior TEXT NOT NULL DEFAULT 'hide',
+                panel_position TEXT NOT NULL DEFAULT 'center',
+                quick_paste INTEGER NOT NULL DEFAULT 0,
+                url_toast INTEGER NOT NULL DEFAULT 0,
+                llm_config TEXT NOT NULL DEFAULT '{}'
+            );
+            CREATE TABLE clips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type TEXT NOT NULL,
+                plain_text TEXT,
+                rich_text TEXT,
+                summary TEXT NOT NULL,
+                image_path TEXT,
+                file_paths_json TEXT NOT NULL DEFAULT '[]',
+                source_app TEXT NOT NULL DEFAULT '—',
+                is_pinned INTEGER NOT NULL DEFAULT 0,
+                is_truncated INTEGER NOT NULL DEFAULT 0,
+                group_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_used_at TEXT,
+                content_hash TEXT NOT NULL,
+                position_updated_at TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings(id, retention_limit, launch_on_startup, pause_capture, locale, accessibility_prompted, close_behavior, panel_position, quick_paste, url_toast, llm_config)
+             VALUES(1, 200, 0, 0, 'zh-CN', 0, 'hide', 'center', 0, 0, '{}')",
+            [],
+        )
+        .unwrap();
+        conn
+    }
+
+    fn setup_hotkey_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE hotkey_settings (
+                action_key TEXT PRIMARY KEY,
+                hotkey_value TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn insert_clip(conn: &Connection, id: i64, image_path: Option<&str>, position_updated_at: &str) {
+        conn.execute(
+            "INSERT INTO clips(id, content_type, plain_text, rich_text, summary, image_path, file_paths_json, source_app, is_pinned, is_truncated, group_id, created_at, updated_at, last_used_at, content_hash, position_updated_at)
+             VALUES(?1, 'image', NULL, NULL, ?2, ?3, '[]', '—', 0, 0, NULL, ?4, ?4, NULL, ?5, ?4)",
+            params![id, format!("clip-{id}"), image_path, position_updated_at, format!("hash-{id}")],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn migrate_quick_panel_hotkey_promotes_value_to_main_window() {
+        let conn = setup_hotkey_conn();
+        conn.execute(
+            "INSERT INTO hotkey_settings(action_key, hotkey_value) VALUES(?1, ?2)",
+            params!["open_main_window", "Ctrl+Shift+Space"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO hotkey_settings(action_key, hotkey_value) VALUES(?1, ?2)",
+            params!["open_quick_panel", "Ctrl+Shift+V"],
+        )
+        .unwrap();
+
+        migrate_quick_panel_hotkey_to_main_window(&conn).unwrap();
+
+        let rows = list_hotkeys(&conn).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].action_key, "open_main_window");
+        assert_eq!(rows[0].hotkey_value, "Ctrl+Shift+V");
+    }
+
+    #[test]
+    fn migrate_quick_panel_hotkey_keeps_existing_main_when_quick_panel_missing() {
+        let conn = setup_hotkey_conn();
+        conn.execute(
+            "INSERT INTO hotkey_settings(action_key, hotkey_value) VALUES(?1, ?2)",
+            params!["open_main_window", "Ctrl+Shift+Space"],
+        )
+        .unwrap();
+
+        migrate_quick_panel_hotkey_to_main_window(&conn).unwrap();
+
+        let rows = list_hotkeys(&conn).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].action_key, "open_main_window");
+        assert_eq!(rows[0].hotkey_value, "Ctrl+Shift+Space");
+    }
+
+    #[test]
+    fn save_settings_prunes_overflow_and_returns_deleted_image_paths() {
+        let conn = setup_app_conn();
+        insert_clip(&conn, 1, Some("D:/images/oldest.png"), "2024-01-01T00:00:00Z");
+        insert_clip(&conn, 2, None, "2024-01-01T00:00:01Z");
+        insert_clip(&conn, 3, Some("D:/images/newest.png"), "2024-01-01T00:00:02Z");
+
+        let mut settings = load_settings(&conn).unwrap();
+        settings.retention_limit = 2;
+
+        let (saved, removed_images) = save_settings(&conn, &settings).unwrap();
+
+        assert_eq!(saved.retention_limit, 2);
+        assert_eq!(removed_images, vec!["D:/images/oldest.png".to_string()]);
+
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM clips", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 2);
+
+        let remaining_ids: Vec<i64> = conn
+            .prepare("SELECT id FROM clips ORDER BY id ASC")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(remaining_ids, vec![2, 3]);
+    }
+
+    #[test]
+    fn cleanup_overflow_skips_null_image_paths_and_keeps_image_paths_for_deleted_rows() {
+        let conn = setup_app_conn();
+        insert_clip(&conn, 1, None, "2024-01-01T00:00:00Z");
+        insert_clip(&conn, 2, Some("D:/images/second.png"), "2024-01-01T00:00:01Z");
+        insert_clip(&conn, 3, Some("D:/images/third.png"), "2024-01-01T00:00:02Z");
+
+        let removed_images = cleanup_overflow(&conn, 1).unwrap();
+
+        assert_eq!(removed_images, vec!["D:/images/second.png".to_string()]);
+
+        let remaining_ids: Vec<i64> = conn
+            .prepare("SELECT id FROM clips ORDER BY id ASC")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(remaining_ids, vec![3]);
+    }
 }

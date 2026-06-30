@@ -11,6 +11,7 @@ import {
     listClips,
     listGroups,
     moveClipToGroup,
+    hideWindow,
     pinToggle,
     recopyClip,
     restoreBackup,
@@ -173,8 +174,12 @@ export function useAppData() {
 
     const handleRecopy = useCallback(async (clipId: number) => {
         await recopyClip(clipId);
+        if (settingsRef.current.quick_paste) {
+            await hideWindow(true);
+            return;
+        }
         await loadClips();
-    }, [loadClips]);
+    }, [loadClips, settingsRef]);
 
     const handlePinToggle = useCallback((clipId: number, pinned: boolean) => {
         void pinToggle(clipId, pinned).then(() => loadClips());

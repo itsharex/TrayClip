@@ -11,9 +11,9 @@ export const zh = {
   about: "关于",
   all: "全部",
   copy: "复制",
+  apply: "应用",
   pin: "置顶",
   unpin: "取消置顶",
-  pinned: "置顶",
 
   // 窗口栏
   toggleTheme: "切换主题",
@@ -36,7 +36,6 @@ export const zh = {
   } as Record<string, string>,
 
   // ClipCard
-  contentTruncated: "内容已截断",
   moreFiles: (n: number) => `及其他 ${n} 个文件`,
   emptyRecords: "暂无记录",
 
@@ -50,14 +49,9 @@ export const zh = {
   hideToTray: "隐藏到托盘",
   exitApp: "退出",
   confirmDeleteGroup: (name: string) => `确定删除分组「${name}」？组内记录不会被删除，将恢复为未分组状态。`,
-  groupDeleted: "分组已删除",
-  groupNameExists: "分组名已存在",
   confirmClearHistory: "确定清空所有普通历史记录？置顶记录不会被删除。此操作不可撤销。",
-  historyCleared: "历史已清空",
   confirmDeleteClip: "确定删除这条记录？此操作不可撤销。",
-  clipDeleted: "记录已删除",
   copiedToClipboard: "已复制到剪贴板",
-  operationFailed: "操作失败，请稍后重试",
 
   // 关于页
   aboutTitle: "关于 TrayClip",
@@ -79,11 +73,9 @@ export const zh = {
   pauseCapture: "暂停采集剪贴板",
   quickPaste: "快捷粘贴",
   urlToast: "链接提示",
-  urlToastHint: "复制内容包含链接时弹出提示窗口",
   openLink: "打开",
   backup: "备份",
   restore: "还原",
-  backupSuccess: "备份成功",
   confirmRestore: "还原将替换所有数据（记录、分组、设置），应用会自动重启。确定继续？",
   backupData: "数据备份",
   clearHistory: "清空历史记录",
@@ -94,12 +86,11 @@ export const zh = {
   hideToTrayRecommended: "隐藏到托盘（推荐）",
   exitDirectly: "直接退出",
   askEveryTime: "每次询问",
-  panelPosition: "快捷面板呼出位置",
+  panelPosition: "窗口呼出位置",
   centerScreen: "屏幕中间",
   followMouse: "跟随鼠标",
   hotkeys: "快捷键",
   openMainWindow: "打开列表窗口",
-  openQuickPanel: "打开快捷面板",
   restoreDefault: "恢复默认",
   pressHotkey: "按下快捷键...",
 
@@ -122,7 +113,6 @@ export const zh = {
 
   // 翻译
   translate: "翻译",
-  translateTarget: "目标语言",
   translateBtn: "翻译",
   translating: "翻译中...",
   translateFailed: "翻译失败",
@@ -130,7 +120,4 @@ export const zh = {
 
   // 右键菜单
   jsonCopy: "JSON 格式化复制",
-
-  // 快捷面板
-  quickPanelSearch: "搜索剪贴板...",
 };
