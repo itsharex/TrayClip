@@ -268,6 +268,7 @@ export default function App() {
                 {/* Clip list */}
                 <ClipList
                     clips={deferredClips}
+                    scrollResetKey={data.scrollResetKey}
                     groups={data.state.groups}
                     settings={data.state.settings}
                     scrollRef={scrollRef}

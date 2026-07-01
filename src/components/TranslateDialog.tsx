@@ -41,12 +41,12 @@ interface TranslateDialogProps {
 }
 
 export function TranslateDialog({
-  text,
-  llmConfig,
-  llmEnabled,
-  aiTranslate,
-  onClose,
-}: TranslateDialogProps) {
+                                  text,
+                                  llmConfig,
+                                  llmEnabled,
+                                  aiTranslate,
+                                  onClose,
+                                }: TranslateDialogProps) {
   const useAI = aiTranslate && llmEnabled;
   const { t, locale } = useTranslation();
   const [targetLang, setTargetLang] = useState(() => (locale === "zh-CN" ? "zh-Hans" : "en"));
@@ -83,75 +83,75 @@ export function TranslateDialog({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[360px]" onDoubleClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-1.5 text-sm">
-            <Languages className="h-4 w-4" /> {t.translate}
-          </DialogTitle>
-          <DialogDescription className="sr-only">{t.translate}</DialogDescription>
-        </DialogHeader>
+      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="max-w-[360px]" onDoubleClick={(e) => e.stopPropagation()} onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5 text-sm">
+              <Languages className="h-4 w-4" /> {t.translate}
+            </DialogTitle>
+            <DialogDescription className="sr-only">{t.translate}</DialogDescription>
+          </DialogHeader>
 
-        <textarea
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          rows={3}
-          className="w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
+          <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              rows={3}
+              className="w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
 
-        <div className="flex items-center gap-2">
-          <Select value={targetLang} onValueChange={setTargetLang}>
-            <SelectTrigger className="flex-1 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((l) => (
-                <SelectItem key={l.code} value={l.code} className="text-xs">
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            size="sm"
-            className="shrink-0 text-xs"
-            onClick={() => void handleTranslate()}
-            disabled={loading}
-          >
-            {loading ? t.translating : t.translateBtn}
-          </Button>
-        </div>
+          <div className="flex items-center gap-2">
+            <Select value={targetLang} onValueChange={setTargetLang}>
+              <SelectTrigger className="flex-1 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map((l) => (
+                    <SelectItem key={l.code} value={l.code} className="text-xs">
+                      {l.label}
+                    </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+                size="sm"
+                className="shrink-0 text-xs"
+                onClick={() => void handleTranslate()}
+                disabled={loading}
+            >
+              {loading ? t.translating : t.translateBtn}
+            </Button>
+          </div>
 
-        {loading ? (
-          <p className="py-3 text-center text-sm text-muted-foreground">{t.translating}</p>
-        ) : error ? (
-          <p className="py-3 text-sm text-destructive">{error}</p>
-        ) : result ? (
-          <ScrollArea className="max-h-[200px]">
+          {loading ? (
+              <p className="py-3 text-center text-sm text-muted-foreground">{t.translating}</p>
+          ) : error ? (
+              <p className="py-3 text-sm text-destructive">{error}</p>
+          ) : result ? (
+              <ScrollArea className="max-h-[200px]">
             <pre className="whitespace-pre-wrap break-words rounded-md border bg-muted p-2.5 font-sans text-xs leading-relaxed">
               {result}
             </pre>
-          </ScrollArea>
-        ) : null}
+              </ScrollArea>
+          ) : null}
 
-        <p className="text-center text-[11px] text-muted-foreground">
-          {useAI ? t.aiDisclaimer : t.bingSource}
-        </p>
+          <p className="text-center text-[11px] text-muted-foreground">
+            {useAI ? t.aiDisclaimer : t.bingSource}
+          </p>
 
-        {!loading && !error && result ? (
-          <Button
-            size="sm"
-            className="w-full"
-            onClick={handleCopy}
-          >
-            {copied ? (
-              <><Check className="mr-1.5 h-3.5 w-3.5" /> {t.copiedToClipboard}</>
-            ) : (
-              <><Copy className="mr-1.5 h-3.5 w-3.5" /> {t.copyResult}</>
-            )}
-          </Button>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+          {!loading && !error && result ? (
+              <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={handleCopy}
+              >
+                {copied ? (
+                    <><Check className="mr-1.5 h-3.5 w-3.5" /> {t.copiedToClipboard}</>
+                ) : (
+                    <><Copy className="mr-1.5 h-3.5 w-3.5" /> {t.copyResult}</>
+                )}
+              </Button>
+          ) : null}
+        </DialogContent>
+      </Dialog>
   );
 }

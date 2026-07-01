@@ -30,6 +30,7 @@ export function useAppData() {
         return Number.isNaN(n) ? null : n;
     });
     const [loaded, setLoaded] = useState(false);
+    const [scrollResetKey, setScrollResetKey] = useState(0);
     const initialLoadDone = useRef(false);
     const settingsRef = useRef(state.settings);
     const selectedGroupIdRef = useRef(selectedGroupId);
@@ -83,7 +84,7 @@ export function useAppData() {
 
     // Startup: load everything, then show window
     useEffect(() => {
-        void loadAll().finally(() => {
+        void loadAll().then(() => setScrollResetKey((k) => k + 1)).finally(() => {
             initialLoadDone.current = true;
             setLoaded(true);
             const win = getCurrentWindow();
@@ -92,11 +93,10 @@ export function useAppData() {
         });
     }, [loadAll]);
 
-    // Group switch: clear old clips immediately, then reload
+    // Group switch: reload clips and scroll to top
     useEffect(() => {
         if (!initialLoadDone.current) return;
-        setState((prev) => ({ ...prev, clips: { items: [], total: 0, has_more: false } }));
-        void loadClips(selectedGroupId);
+        void loadClips(selectedGroupId).then(() => setScrollResetKey((k) => k + 1));
     }, [selectedGroupId, loadClips]);
 
     // Reload on focus
@@ -104,7 +104,7 @@ export function useAppData() {
         let unlisten: (() => void) | undefined;
         let cancelled = false;
         getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-            if (focused && initialLoadDone.current && !isDragging.current) void loadClips();
+            if (focused && initialLoadDone.current && !isDragging.current) { void loadClips().then(() => setScrollResetKey((k) => k + 1)); }
         }).then((fn) => {
             if (cancelled) { fn(); return; }
             unlisten = fn;
@@ -194,6 +194,7 @@ export function useAppData() {
         selectedGroupId,
         setSelectedGroupId,
         loaded,
+        scrollResetKey,
         initialLoadDone,
         settingsRef,
         isDragging,
