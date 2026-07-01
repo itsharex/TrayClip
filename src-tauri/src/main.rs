@@ -13,8 +13,12 @@ use app_state::AppState;
 use parking_lot::{Mutex, RwLock};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+struct TrayState {
+    tray: Mutex<Option<TrayIcon<tauri::Wry>>>,
+}
 
 fn apply_pending_restore(app: &tauri::AppHandle) {
     let resolver = app.path();
@@ -197,7 +201,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let _tray = TrayIconBuilder::new()
+    let tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .icon_as_template(false)
         .menu(&menu)
@@ -224,6 +228,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
             }
         })
         .build(app)?;
+
+    *app.state::<TrayState>().tray.lock() = Some(tray);
 
     Ok(())
 }
@@ -280,6 +286,9 @@ fn main() {
                 db::migrate_quick_panel_hotkey_to_main_window(&conn)?;
             }
             app.manage(state);
+            app.manage(TrayState {
+                tray: Mutex::new(None),
+            });
             {
                 let state = app.state::<AppState>();
                 #[cfg(target_os = "linux")]
