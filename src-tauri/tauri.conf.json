@@ -15,7 +15,6 @@
       "id": "main",
       "iconPath": "icons/32x32.png",
       "iconAsTemplate": false,
-      "title": "TC",
       "tooltip": "TrayClip",
       "showMenuOnLeftClick": true
     },
