@@ -200,10 +200,13 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let show_item = MenuItemBuilder::new("显示窗口").id("show").build(app)?;
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
-    let configure_tray = |tray: &TrayIcon<tauri::Wry>| -> anyhow::Result<()> {
-        tray.set_menu(Some(menu.clone()))?;
-        tray.set_tooltip(Some("TrayClip"))?;
-        tray.on_tray_icon_event(|tray, event| {
+
+    let tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .icon_as_template(false)
+        .menu(&menu)
+        .tooltip("TrayClip")
+        .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -212,8 +215,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
             {
                 show_main_window(tray.app_handle());
             }
-        });
-        tray.on_menu_event(|app, event| {
+        })
+        .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "show" => {
                     show_main_window(app);
@@ -223,23 +226,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                 }
                 _ => {}
             }
-        });
-        Ok(())
-    };
-
-    let tray = if let Some(tray) = app.tray_by_id("main") {
-        configure_tray(&tray)?;
-        tray
-    } else {
-        let tray = TrayIconBuilder::with_id("main")
-            .icon(app.default_window_icon().unwrap().clone())
-            .icon_as_template(false)
-            .menu(&menu)
-            .tooltip("TrayClip")
-            .build(app)?;
-        configure_tray(&tray)?;
-        tray
-    };
+        })
+        .build(app)?;
 
     *app.state::<TrayState>().tray.lock() = Some(tray);
 

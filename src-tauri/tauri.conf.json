@@ -11,13 +11,6 @@
   },
   "app": {
     "macOSPrivateApi": true,
-    "trayIcon": {
-      "id": "main",
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": false,
-      "tooltip": "TrayClip",
-      "showMenuOnLeftClick": true
-    },
     "windows": [
       {
         "title": "TrayClip",
