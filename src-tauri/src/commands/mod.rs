@@ -20,6 +20,7 @@ fn runtime_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
+#[cfg(target_os = "windows")]
 fn resolve_hide_window_action(paste_after: bool, previous_hwnd: usize) -> Option<usize> {
     if paste_after && previous_hwnd != 0 {
         return Some(previous_hwnd);
@@ -343,6 +344,11 @@ pub fn request_accessibility_permission(_state: State<'_, AppState>) -> Result<b
 pub fn hide_window(app: AppHandle, state: State<'_, AppState>, paste_after: Option<bool>) -> Result<(), String> {
     if let Some(window) = app.webview_windows().get("main").cloned() {
         let _ = window.hide();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = state;
+        let _ = paste_after;
     }
     #[cfg(target_os = "windows")]
     if let Some(hwnd) = resolve_hide_window_action(paste_after.unwrap_or(false), *state.previous_hwnd.lock()) {

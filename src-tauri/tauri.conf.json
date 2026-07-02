@@ -11,6 +11,14 @@
   },
   "app": {
     "macOSPrivateApi": true,
+    "trayIcon": {
+      "id": "main",
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": false,
+      "title": "TC",
+      "tooltip": "TrayClip",
+      "showMenuOnLeftClick": true
+    },
     "windows": [
       {
         "title": "TrayClip",
@@ -65,10 +73,7 @@
     },
     "windows": {
       "nsis": {
-        "languages": [
-          "English",
-          "SimpChinese"
-        ]
+        "languages": ["English", "SimpChinese"]
       }
     }
   }
