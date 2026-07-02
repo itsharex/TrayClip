@@ -205,7 +205,7 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
 
     let tray = TrayIconBuilder::with_id("main")
         .icon(tray_icon)
-        .icon_as_template(true)
+        .icon_as_template(false)
         .menu(&menu)
         .tooltip("TrayClip")
         .on_tray_icon_event(|tray, event| {
