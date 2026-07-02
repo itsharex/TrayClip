@@ -11,7 +11,7 @@ mod paths;
 use anyhow::Context;
 use app_state::AppState;
 use parking_lot::{Mutex, RwLock};
-use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{image::Image, Emitter, Manager, PhysicalPosition, PhysicalSize};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -200,11 +200,15 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let show_item = MenuItemBuilder::new("显示窗口").id("show").build(app)?;
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
+    let tray_icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))
+        .context("failed to load tray icon")?;
 
-    let tray = if let Some(tray) = app.tray_by_id("main") {
-        tray.set_menu(Some(menu))?;
-        tray.set_tooltip(Some("TrayClip"))?;
-        tray.on_tray_icon_event(|tray, event| {
+    let tray = TrayIconBuilder::with_id("main")
+        .icon(tray_icon)
+        .icon_as_template(true)
+        .menu(&menu)
+        .tooltip("TrayClip")
+        .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -213,8 +217,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
             {
                 show_main_window(tray.app_handle());
             }
-        });
-        tray.on_menu_event(|app, event| {
+        })
+        .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "show" => {
                     show_main_window(app);
@@ -224,37 +228,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                 }
                 _ => {}
             }
-        });
-        tray
-    } else {
-        TrayIconBuilder::new()
-            .icon(app.default_window_icon().unwrap().clone())
-            .icon_as_template(true)
-            .menu(&menu)
-            .tooltip("TrayClip")
-            .on_tray_icon_event(|tray, event| {
-                if let TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } = event
-                {
-                    show_main_window(tray.app_handle());
-                }
-            })
-            .on_menu_event(|app, event| {
-                match event.id().as_ref() {
-                    "show" => {
-                        show_main_window(app);
-                    }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
-                }
-            })
-            .build(app)?
-    };
+        })
+        .build(app)?;
 
     *app.state::<TrayState>().tray.lock() = Some(tray);
 
