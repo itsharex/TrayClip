@@ -201,12 +201,10 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
-        .icon_as_template(false)
-        .menu(&menu)
-        .tooltip("TrayClip")
-        .on_tray_icon_event(|tray, event| {
+    let tray = if let Some(tray) = app.tray_by_id("main") {
+        tray.set_menu(Some(menu))?;
+        tray.set_tooltip(Some("TrayClip"))?;
+        tray.on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -215,8 +213,8 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
             {
                 show_main_window(tray.app_handle());
             }
-        })
-        .on_menu_event(|app, event| {
+        });
+        tray.on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "show" => {
                     show_main_window(app);
@@ -226,8 +224,37 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                 }
                 _ => {}
             }
-        })
-        .build(app)?;
+        });
+        tray
+    } else {
+        TrayIconBuilder::new()
+            .icon(app.default_window_icon().unwrap().clone())
+            .icon_as_template(true)
+            .menu(&menu)
+            .tooltip("TrayClip")
+            .on_tray_icon_event(|tray, event| {
+                if let TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } = event
+                {
+                    show_main_window(tray.app_handle());
+                }
+            })
+            .on_menu_event(|app, event| {
+                match event.id().as_ref() {
+                    "show" => {
+                        show_main_window(app);
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                }
+            })
+            .build(app)?
+    };
 
     *app.state::<TrayState>().tray.lock() = Some(tray);
 
