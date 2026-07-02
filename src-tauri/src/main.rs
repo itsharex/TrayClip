@@ -196,13 +196,12 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
+fn setup_tray(app: &tauri::AppHandle) -> anyhow::Result<()> {
     let show_item = MenuItemBuilder::new("显示窗口").id("show").build(app)?;
     let quit_item = MenuItemBuilder::new("退出").id("quit").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+    let mut builder = TrayIconBuilder::new()
         .icon_as_template(true)
         .menu(&menu)
         .tooltip("TrayClip")
@@ -216,18 +215,19 @@ fn setup_tray(app: &tauri::App) -> anyhow::Result<()> {
                 show_main_window(tray.app_handle());
             }
         })
-        .on_menu_event(|app, event| {
-            match event.id().as_ref() {
-                "show" => {
-                    show_main_window(app);
-                }
-                "quit" => {
-                    app.exit(0);
-                }
-                _ => {}
-            }
-        })
-        .build(app)?;
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    } else {
+        eprintln!("[tray] default_window_icon() returned None");
+    }
+
+    let tray = builder.build(app)?;
 
     *app.state::<TrayState>().tray.lock() = Some(tray);
 
@@ -266,7 +266,7 @@ pub fn register_global_shortcuts(handle: &tauri::AppHandle) -> anyhow::Result<()
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -306,7 +306,6 @@ fn main() {
                 }
             }
             monitor::spawn_clipboard_monitor(app.handle().clone());
-            setup_tray(app).context("failed to setup tray")?;
 
             // Hide Dock icon on macOS — keep only the menu bar tray icon
             #[cfg(target_os = "macos")]
@@ -387,8 +386,18 @@ fn main() {
             commands::show_url_toast,
             commands::bing_translate
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running trayclip");
+        .build(tauri::generate_context!())
+        .expect("error while building trayclip");
+
+    app.run(|app, event| {
+        if let tauri::RunEvent::Ready = event {
+            if app.state::<TrayState>().tray.lock().is_none() {
+                if let Err(err) = setup_tray(app) {
+                    eprintln!("[tray] setup failed on Ready: {}", err);
+                }
+            }
+        }
+    });
 }
 
 #[cfg(test)]
